@@ -1,0 +1,23 @@
+<div style="text-align: center;">
+    <div style="font-size: 72px; margin-bottom: 20px;">⚠️</div>
+    <h1 style="color: #c62828;">{{title}}</h1>
+    
+    <div class="alert alert-error" style="margin-top: 20px; text-align: left;">
+        <strong>{{message}}</strong>
+        {{#if error}}
+        <pre style="margin-top: 15px; padding: 15px; background: #fff; border-radius: 6px; overflow-x: auto; font-size: 12px;">{{error}}</pre>
+        {{/if}}
+    </div>
+    
+    <div class="alert alert-info" style="margin-top: 20px; text-align: left;">
+        <strong>💡 Posibles soluciones:</strong>
+        <ul style="margin-top: 10px; padding-left: 20px;">
+            <li>Verifica que hayas configurado tu <code>API Key</code> en <code>server.js</code></li>
+            <li>Asegúrate de estar usando las credenciales correctas del ambiente sandbox</li>
+            <li>Revisa la consola del servidor para más detalles del error</li>
+            <li>Obtén tus credenciales en: <a href="https://www.klap.cl/developers/datosdeprueba" target="_blank" style="color: #1976d2;">klap.cl/developers/datosdeprueba</a></li>
+        </ul>
+    </div>
+    
+    <a href="/" class="back-link" style="margin-top: 30px; display: inline-block;">← Volver al inicio</a>
+</div>

@@ -1,0 +1,28 @@
+<div style="text-align: center;">
+    {{#if (eq type 'success')}}
+    <div style="font-size: 72px; margin-bottom: 20px;">✅</div>
+    <h1 style="color: #388e3c;">{{title}}</h1>
+    <div class="alert alert-success" style="margin-top: 20px;">
+        {{message}}
+    </div>
+    {{else if (eq type 'cancel')}}
+    <div style="font-size: 72px; margin-bottom: 20px;">⚠️</div>
+    <h1 style="color: #f57c00;">{{title}}</h1>
+    <div class="alert alert-warning" style="margin-top: 20px;">
+        {{message}}
+    </div>
+    {{else}}
+    <div style="font-size: 72px; margin-bottom: 20px;">❌</div>
+    <h1 style="color: #c62828;">{{title}}</h1>
+    <div class="alert alert-error" style="margin-top: 20px;">
+        {{message}}
+    </div>
+    {{/if}}
+
+    <a href="/" class="back-link" style="margin-top: 30px; display: inline-block;">← Volver al inicio</a>
+</div>
+
+<script>
+    // Helper para Handlebars que permite comparación
+    // (Este script es solo visual, la lógica está en el servidor)
+</script>
