@@ -55,12 +55,12 @@ export class KlapService {
           email: request.userEmail || 'cliente@revia.cl',
         },
         urls: {
-          return_url: process.env.KLAP_RETURN_URL,
-          cancel_url: process.env.KLAP_CANCEL_URL,
+          return_url: `${process.env.APP_URL}/api/v1/payment/success`,
+          cancel_url: `${process.env.APP_URL}/api/v1/payment/cancel`,
         },
         webhooks: {
-          webhook_confirm: process.env.KLAP_WEBHOOK_CONFIRM_URL || `${process.env.KLAP_WEBHOOK_BASE_URL}/confirm`,
-          webhook_reject: process.env.KLAP_WEBHOOK_REJECT_URL || `${process.env.KLAP_WEBHOOK_BASE_URL}/reject`,
+          webhook_confirm: `${process.env.APP_URL}/api/v1/webhooks/klap/confirm`,
+          webhook_reject: `${process.env.APP_URL}/api/v1/webhooks/klap/reject`,
         },
         customs: [
           // Tiempo de expiración (30 minutos)
@@ -69,7 +69,7 @@ export class KlapService {
           // Notificaciones
           { key: 'notify_payment_user', value: 'true' },
           { key: 'notify_payment_merchant', value: 'true' },
-          { key: 'notify_payment_email_merchant', value: process.env.MERCHANT_EMAIL || 'tu@email.com' },
+          { key: 'notify_payment_email_merchant', value: process.env.MERCHANT_EMAIL || 'josh.yzxt@gmail.com' },
 
           // Pago sin cuotas (pago único)
           //  { key: 'tarjetas_quotas_allowed', value: '1' },

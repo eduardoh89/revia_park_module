@@ -1,96 +1,179 @@
 import { Request, Response, NextFunction } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { KlapService } from '../../infrastructure/payment/KlapService';
-import { AppDataSource } from '../../data-source';
-import { Payment } from '../../entity/Payment';
-import { ParkingSession } from '../../entity/ParkingSession';
-import { Vehicle } from '../../entity/Vehicle';
+import { Payment } from '../../models/Payment';
+import { ParkingSession } from '../../models/ParkingSession';
+import { Vehicle } from '../../models/Vehicle';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('PaymentController');
 const klapService = new KlapService();
-const paymentRepository = AppDataSource.getRepository(Payment);
-const sessionRepository = AppDataSource.getRepository(ParkingSession);
 
 export class PaymentController {
   /**
-   * POST /create
-   * Crear orden de pago y devolver datos para el checkout
+   * POST /api/v1/payments/create
+   * Crear pago y generar link temporal (usado por WhatsApp Bot)
+   * Retorna un link que expira en 5 minutos
    */
-  static async checkout(req: Request, res: Response, next: NextFunction) {
-
-    console.log(req.body);
-
+  static async createPaymentLink(req: Request, res: Response, next: NextFunction) {
     try {
-      const { amount, description, email, licensePlate = 'PTCL23' } = req.body;
-
-      // Validar campos requeridos
-      if (!amount) {
-        return res.status(400).json({
-          success: false,
-          error: 'El monto es requerido',
-        });
-      }
+      const { licensePlate } = req.body;
 
       if (!licensePlate) {
         return res.status(400).json({
           success: false,
-          error: 'La matrícula es requerida',
+          error: 'La patente es requerida',
+        });
+      }
+
+      // Buscar vehículo por patente
+      const vehicle = await Vehicle.findOne({
+        where: { license_plate: licensePlate }
+      });
+
+      if (!vehicle) {
+        return res.status(404).json({
+          success: false,
+          error: 'Vehículo no encontrado',
         });
       }
 
       // Buscar sesión activa del vehículo
-      const session = await sessionRepository.createQueryBuilder("session")
-        .innerJoin("session.vehicle", "vehicle")
-        .where("vehicle.license_plate = :plate", { plate: licensePlate })
-        .andWhere("session.status = :status", { status: 'PARKED' })
-        .getOne();
-
-        console.log(session);
-        
+      const session = await ParkingSession.findOne({
+        where: {
+          id_vehicles: vehicle.id_vehicles,
+          status: 'PARKED'
+        }
+      });
 
       if (!session) {
- 
-        // Error 404
         return res.status(404).json({
           success: false,
           error: 'No se encontró una sesión de estacionamiento activa para esta patente.',
         });
       }
 
-      // Crear pago en Klap
+      // Calcular monto a pagar (puedes importar el método de VehicleController)
+      const amount = 30000; // Por ahora hardcodeado, después lo calculas dinámicamente
+
       const klapPayment = await klapService.createPayment({
-        amount: parseInt(amount),
-        description: description || 'Pago de estacionamiento',
+        amount: amount,
+        description: `Pago estacionamiento - ${licensePlate}`,
         licensePlate: licensePlate,
-        userEmail: email,
+        userEmail: '',
       });
 
-      // Guardar registro de pago en BD
-      const newPayment = new Payment();
-      newPayment.order_id = klapPayment.orderId;
-      newPayment.reference_id = klapPayment.referenceId;
-      newPayment.amount = parseInt(amount);
-      newPayment.status = 'PENDING';
-      newPayment.parkingSession = session;
+      // Crear link temporal (expira en 5 minutos)
+      const linkCode = uuidv4();
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
 
-      await paymentRepository.save(newPayment);
+      const payment = await Payment.create({
+        order_id: klapPayment.orderId,
+        reference_id: klapPayment.referenceId,
+        amount: amount,
+        status: 'PENDING',
+        id_parking_sessions: session.id_parking_sessions,
+        link_code: linkCode,
+        link_is_used: false,
+        link_expires_at: expiresAt,
+      });
 
-      logger.info('Payment created and saved', {
-        orderId: klapPayment.orderId,
+      const paymentUrl = `${process.env.APP_URL || 'http://localhost:3000'}/api/v1/payments/checkout?code=${linkCode}`;
+
+      logger.info('Payment link created', {
         licensePlate,
-        sessionId: session.id_parking_sessions
+        linkCode,
+        expiresAt,
+        paymentUrl
       });
 
-      // Renderizar checkout embebido con el SDK de Klap
-      res.render('checkout', {
-        title: 'Realizar Pago',
-        orderId: klapPayment.orderId,
-        amount: parseInt(amount),
-        description: description || 'Pago de estacionamiento',
-        licensePlate: licensePlate,
+      res.json({
+        success: true,
+        data: {
+          paymentUrl,
+          expiresAt,
+          amount,
+          licensePlate
+        }
       });
     } catch (error) {
-      logger.error('Error creating payment', { error });
+      logger.error('Error creating payment link', { error });
+      next(error);
+    }
+  }
+
+  /**
+   * GET /api/v1/payments/checkout?code=xxx
+   * Mostrar formulario de pago usando el código del link
+   */
+  static async checkout(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { code } = req.query;
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).render('result', {
+          title: 'Error',
+          type: 'error',
+          message: 'Código de pago inválido',
+        });
+      }
+
+      const payment = await Payment.findOne({
+        where: { link_code: code },
+        include: [{
+          model: ParkingSession,
+          include: [Vehicle]
+        }]
+      });
+
+      if (!payment) {
+        return res.status(404).render('result', {
+          title: 'Error',
+          type: 'error',
+          message: 'Link de pago no encontrado',
+        });
+      }
+
+      // Verificar si el link ya fue usado
+      if (payment.link_is_used) {
+        return res.status(410).render('result', {
+          title: 'Link Usado',
+          type: 'error',
+          message: 'Este link de pago ya fue utilizado',
+        });
+      }
+
+      // Verificar si el link expiró
+      if (payment.isLinkExpired()) {
+        return res.status(410).render('result', {
+          title: 'Link Expirado',
+          type: 'error',
+          message: 'Este link de pago ha expirado. Por favor solicita uno nuevo.',
+        });
+      }
+
+      // Marcar el link como usado
+      await payment.update({ link_is_used: true });
+
+      const session = payment.parkingSession;
+      const vehicle = await Vehicle.findByPk(session.id_vehicles);
+
+      logger.info('Payment checkout accessed', {
+        linkCode: code,
+        orderId: payment.order_id,
+        licensePlate: vehicle?.license_plate
+      });
+
+      // Renderizar formulario de pago
+      res.render('checkout', {
+        title: 'Realizar Pago',
+        orderId: payment.order_id,
+        amount: payment.amount,
+        description: `Pago estacionamiento - ${vehicle?.license_plate}`,
+        licensePlate: vehicle?.license_plate,
+      });
+    } catch (error) {
+      logger.error('Error in checkout', { error });
       next(error);
     }
   }
@@ -127,7 +210,7 @@ export class PaymentController {
     res.render('result', {
       title: 'Error en el Pago',
       type: 'error',
-      message: req.query.message || 'Ocurrió un error al procesar el pago',
+      message: req.query.message as string || 'Ocurrió un error al procesar el pago',
     });
   }
 }

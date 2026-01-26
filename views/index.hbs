@@ -1,77 +1,106 @@
-<div class="logo">💳</div>
+<style>
+    .logo-container {
+        margin-bottom: 30px;
+    }
 
-<h1>Demo Klap Checkout Fle222</h1>
-<p class="subtitle">Integración básica con Node.js y Handlebars</p>
+    .logo-img {
+        max-width: 180px;
+        height: auto;
+        margin-bottom: 20px;
+    }
 
-<div class="alert alert-info">
-    <strong>ℹ️ Ambiente Sandbox</strong><br>
-    Este demo usa el ambiente de pruebas de Klap. Asegúrate de configurar tu <code>API Key</code> en el archivo <code>.env</code>
+    h1 {
+        color: #333;
+        font-size: 32px;
+        margin-bottom: 15px;
+        font-weight: 700;
+    }
+
+    .subtitle {
+        color: #666;
+        font-size: 18px;
+        line-height: 1.6;
+        margin-bottom: 40px;
+        padding: 0 20px;
+    }
+
+    .whatsapp-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        background: #25D366;
+        color: white;
+        text-decoration: none;
+        padding: 16px 32px;
+        border-radius: 50px;
+        font-size: 18px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+    }
+
+    .whatsapp-btn:hover {
+        background: #128C7E;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
+    }
+
+    .whatsapp-btn:active {
+        transform: translateY(0);
+    }
+
+    .whatsapp-icon {
+        width: 28px;
+        height: 28px;
+    }
+
+    .features {
+        margin-top: 40px;
+        padding-top: 30px;
+        border-top: 2px solid #f0f0f0;
+    }
+
+    .feature-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin: 15px 0;
+        color: #555;
+        font-size: 16px;
+    }
+
+    .feature-icon {
+        font-size: 24px;
+    }
+</style>
+
+<div class="logo-container">
+    <img src="/assets/img/logo.png" alt="REVIA Logo" class="logo-img">
 </div>
 
-<form action="/api/v1/payments/create" method="POST">
-    <div class="form-group">
-        <label for="amount">Monto (CLP) *</label>
-        <input 
-            type="number" 
-            id="amount" 
-            name="amount" 
-            required 
-            min="100"
-            placeholder="10000"
-            value="10000"
-        >
+<h1>REVIA</h1>
+<p class="subtitle">
+    Sistema inteligente de gestión de estacionamientos. Paga tu estacionamiento de forma rápida y segura a través de WhatsApp.
+</p>
+
+<a href="{{whatsappLink}}" class="whatsapp-btn" target="_blank">
+    <img src="/assets/img/WhatsApp_icon.png" alt="WhatsApp" class="whatsapp-icon">
+    Pagar mi estacionamiento
+</a>
+
+<div class="features">
+    <div class="feature-item">
+        <span class="feature-icon">⚡</span>
+        <span>Pago instantáneo</span>
     </div>
-
-    <div class="form-group">
-        <label for="description">Descripción</label>
-        <textarea 
-            id="description" 
-            name="description" 
-            placeholder="Describe el producto o servicio"
-        >Producto de prueba</textarea>
+    <div class="feature-item">
+        <span class="feature-icon">🔒</span>
+        <span>Seguro y confiable</span>
     </div>
-
-    <div class="form-group">
-        <label for="email">Email del cliente</label>
-        <input 
-            type="email" 
-            id="email" 
-            name="email" 
-            placeholder="cliente@ejemplo.com"
-            value="test@example.com"
-        >
+    <div class="feature-item">
+        <span class="feature-icon">📱</span>
+        <span>Directo desde WhatsApp</span>
     </div>
-
-    <div class="form-group">
-        <label>Modo de Integración</label>
-        <div style="display: flex; gap: 20px; margin-top: 10px;">
-            <label style="display: inline-flex; align-items: center; font-weight: normal;">
-                <input type="radio" name="integrationType" value="modal" checked style="width: auto; margin-right: 8px;"> 
-                Modal (Popup)
-            </label>
-            <label style="display: inline-flex; align-items: center; font-weight: normal;">
-                <input type="radio" name="integrationType" value="embedded" style="width: auto; margin-right: 8px;"> 
-                Incrustado (Embedded)
-            </label>
-        </div>
-    </div>
-
-    <div class="form-group">
-        <label style="display: inline-flex; align-items: center; cursor: pointer;">
-            <input type="checkbox" name="includeWallets" value="true" style="width: auto; margin-right: 10px;">
-            Activar Wallets (Apple Pay / Google Pay) 
-        </label>
-    </div>
-
-    <button type="submit">🚀 Crear Orden y Pagar</button>
-</form>
-
-<div style="margin-top: 30px; padding-top: 30px; border-top: 2px solid #f0f0f0;">
-    <h3 style="font-size: 16px; color: #666; margin-bottom: 15px;">📋 Pasos para usar este demo:</h3>
-    <ol style="color: #666; font-size: 14px; line-height: 1.8; padding-left: 20px;">
-        <li>Obtén tu API Key en <a href="https://www.klap.cl/developers/datosdeprueba" target="_blank" style="color: #667eea;">klap.cl/developers/datosdeprueba</a></li>
-        <li>Configura <code>KLAP_API_KEY</code> en el archivo <code>.env</code></li>
-        <li>Ingresa un monto y haz clic en "Crear Orden y Pagar"</li>
-        <li>Completa el pago con los datos de prueba de Klap</li>
-    </ol>
 </div>

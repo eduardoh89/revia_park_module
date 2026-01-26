@@ -1,27 +1,44 @@
 import { Request, Response } from 'express';
-import { AppDataSource } from '../../data-source';
-import { Vehicle } from '../../entity/Vehicle';
-import { ParkingSession, SessionStatus } from '../../entity/ParkingSession';
-import { ParkingLot } from '../../entity/ParkingLot';
+import { Vehicle } from '../../models/Vehicle';
+import { ParkingSession, SessionStatus } from '../../models/ParkingSession';
+import { ParkingLot } from '../../models/ParkingLot';
+import { ParkingLotRate } from '../../models/ParkingLotRate';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('VehicleController');
-const vehicleRepository = AppDataSource.getRepository(Vehicle);
-const sessionRepository = AppDataSource.getRepository(ParkingSession);
-const parkingLotRepository = AppDataSource.getRepository(ParkingLot);
 
 export class VehicleController {
 
-    static calculateAmount(parkingLot: ParkingLot, arrivalTime: Date): number {
+    /**
+     * Calcular el monto a pagar basado en la tarifa del estacionamiento y tipo de vehículo
+     */
+    static async calculateAmount(parkingLotId: number, vehicleTypeId: number, arrivalTime: Date): Promise<number> {
+        const rate = await ParkingLotRate.findOne({
+            where: {
+                id_parking_lots: parkingLotId,
+                id_vehicle_types: vehicleTypeId,
+            },
+        });
+
+        if (!rate) {
+            throw new Error(`No se encontró tarifa para el estacionamiento ${parkingLotId} y tipo de vehículo ${vehicleTypeId}`);
+        }
+
         const now = new Date();
         const diffMs = now.getTime() - arrivalTime.getTime();
         const diffMinutes = Math.ceil(diffMs / 60000);
 
-        const hours = Math.ceil(diffMinutes / 60);
-        let amount = hours * parkingLot.rate_per_hour;
+        let amount = 0;
 
-        if (parkingLot.min_amount && amount < parkingLot.min_amount) {
-            amount = parkingLot.min_amount;
+        if (rate.rate_per_minute) {
+            amount = diffMinutes * rate.rate_per_minute;
+        } else {
+            const hours = Math.ceil(diffMinutes / 60);
+            amount = hours * rate.rate_per_hour;
+        }
+
+        if (rate.min_amount && amount < rate.min_amount) {
+            amount = rate.min_amount;
         }
 
         return amount;
@@ -33,7 +50,7 @@ export class VehicleController {
      */
     static async registerEntry(req: Request, res: Response) {
         try {
-            const { licensePlate, parkingLotId = 1 } = req.body;
+            const { licensePlate, parkingLotId = 1, vehicleTypeId = 1 } = req.body;
 
             if (!licensePlate) {
                 return res.status(400).json({
@@ -42,7 +59,7 @@ export class VehicleController {
                 });
             }
 
-            const parkingLot = await parkingLotRepository.findOneBy({ id_parking_lots: parkingLotId });
+            const parkingLot = await ParkingLot.findByPk(parkingLotId);
             if (!parkingLot) {
                 return res.status(404).json({
                     success: false,
@@ -50,14 +67,13 @@ export class VehicleController {
                 });
             }
 
-            // Buscar si ya tiene sesión activa
-            // JOIN implícito en ORM o query builder?
-            // Usaremos query builder o findOne con relaciones
-            const activeSession = await sessionRepository.createQueryBuilder("session")
-                .innerJoinAndSelect("session.vehicle", "vehicle")
-                .where("vehicle.license_plate = :plate", { plate: licensePlate })
-                .andWhere("session.status = :status", { status: 'PARKED' })
-                .getOne();
+            const activeSession = await ParkingSession.findOne({
+                include: [{
+                    model: Vehicle,
+                    where: { license_plate: licensePlate }
+                }],
+                where: { status: 'PARKED' }
+            });
 
             if (activeSession) {
                 return res.status(409).json({
@@ -70,34 +86,33 @@ export class VehicleController {
                 });
             }
 
-            // Buscar o crear vehículo
-            let vehicle = await vehicleRepository.findOneBy({ license_plate: licensePlate });
+            let vehicle = await Vehicle.findOne({ where: { license_plate: licensePlate } });
             if (!vehicle) {
-                vehicle = new Vehicle();
-                vehicle.license_plate = licensePlate;
-                await vehicleRepository.save(vehicle);
+                vehicle = await Vehicle.create({
+                    license_plate: licensePlate,
+                    id_vehicle_types: vehicleTypeId,
+                });
             }
 
-            // Crear sesión
-            const session = new ParkingSession();
-            session.vehicle = vehicle;
-            session.parkingLot = parkingLot;
-            session.arrival_time = new Date();
-            session.status = 'PARKED';
-
-            const savedSession = await sessionRepository.save(session);
+            const session = await ParkingSession.create({
+                id_vehicles: vehicle.id_vehicles,
+                id_parking_lots: parkingLot.id_parking_lots,
+                arrival_time: new Date(),
+                status: 'PARKED',
+            });
 
             logger.info('Vehicle entry registered', {
                 licensePlate: vehicle.license_plate,
-                sessionId: savedSession.id_parking_sessions,
+                sessionId: session.id_parking_sessions,
                 parkingLotId,
+                vehicleTypeId: vehicle.id_vehicle_types,
             });
 
             res.status(201).json({
                 success: true,
                 message: 'Entrada registrada correctamente',
                 data: {
-                    sessionId: savedSession.id_parking_sessions,
+                    sessionId: session.id_parking_sessions,
                     licensePlate: vehicle.license_plate,
                     parkingLot: parkingLot.name,
                     arrivalTime: session.arrival_time,
@@ -120,25 +135,32 @@ export class VehicleController {
         try {
             const { plate } = req.params;
 
-            const session = await sessionRepository.createQueryBuilder("session")
-                .innerJoinAndSelect("session.vehicle", "vehicle")
-                .innerJoinAndSelect("session.parkingLot", "parkingLot") // Necesario para calcular tarifa
-                .where("vehicle.license_plate = :plate", { plate })
-                .andWhere("session.status = :status", { status: 'PARKED' })
-                .getOne();
+            const session = await ParkingSession.findOne({
+                include: [
+                    {
+                        model: Vehicle,
+                        where: { license_plate: plate },
+                        required: true
+                    },
+                    {
+                        model: ParkingLot,
+                        required: true
+                    }
+                ],
+                where: { status: 'PARKED' }
+            });
 
             if (!session) {
-                // Verificar si puede salir (último estado PAID con exit_time reciente?)
-                // Por ahora, lógica simple: buscar el último pagado
-                const lastPaidSession = await sessionRepository.createQueryBuilder("session")
-                    .innerJoin("session.vehicle", "vehicle")
-                    .where("vehicle.license_plate = :plate", { plate })
-                    .andWhere("session.status = :status", { status: 'PAID' })
-                    .orderBy("session.exit_time", "DESC") // Asumimos que exit_time se actualiza al pagar o salir
-                    .getOne();
+                const lastPaidSession = await ParkingSession.findOne({
+                    include: [{
+                        model: Vehicle,
+                        where: { license_plate: plate }
+                    }],
+                    where: { status: 'PAID' },
+                    order: [['exit_time', 'DESC']]
+                });
 
                 if (lastPaidSession) {
-                    // Podríamos poner un límite de tiempo aquí (ej. 15 min para salir)
                     return res.json({
                         success: true,
                         status: 'PAID',
@@ -153,16 +175,28 @@ export class VehicleController {
                 });
             }
 
-            const amount = VehicleController.calculateAmount(session.parkingLot, session.arrival_time);
+            let estimatedAmount = 0;
+            try {
+                const vehicle = await Vehicle.findByPk(session.id_vehicles);
+                estimatedAmount = await VehicleController.calculateAmount(
+                    session.id_parking_lots,
+                    vehicle!.id_vehicle_types,
+                    session.arrival_time
+                );
+            } catch (error) {
+                logger.warn('Could not calculate amount', { error });
+            }
+
+            const vehicle = await Vehicle.findByPk(session.id_vehicles);
 
             res.json({
                 success: true,
                 data: {
                     sessionId: session.id_parking_sessions,
-                    licensePlate: session.vehicle.license_plate,
+                    licensePlate: vehicle?.license_plate,
                     status: session.status,
                     arrivalTime: session.arrival_time,
-                    estimatedAmount: amount,
+                    estimatedAmount: estimatedAmount,
                     canExit: session.status === 'PAID',
                 },
             });

@@ -40,13 +40,8 @@ export class App {
     this.app.set('view engine', 'hbs');
     this.app.set('views', path.join(__dirname, '../views'));
 
-    // Archivos estáticos
-    ///  this.app.use(express.static(path.join(__dirname, '../public')));
-
     logger.info('View engine (Handlebars) initialized');
   }
-
-
 
   private initializeMiddlewares(): void {
     // Security - Configuración de Helmet con CSP personalizada para Klap
@@ -111,20 +106,14 @@ export class App {
     // Compression
     this.app.use(compression());
 
+    // Static files
+    this.app.use('/assets', express.static(path.join(__dirname, '../views/assets')));
+
     logger.info('Middlewares initialized');
   }
 
   private initializeRoutes(): void {
     // Health check
-
-    // Página principal - Formulario de pago
-    this.app.get('/', (req: Request, res: Response) => {
-      res.render('index', {
-        title: 'Demo Klap Checkout Flex',
-      });
-    });
-
-
     this.app.get('/health', (req: Request, res: Response) => {
       res.status(200).json({
         status: 'healthy',
@@ -132,9 +121,6 @@ export class App {
         environment: process.env.NODE_ENV,
       });
     });
-
-
-
 
     // API Routes
     this.app.use('/', routes);
@@ -160,5 +146,6 @@ export class App {
     return this.app;
   }
 }
+
 
 export default App;

@@ -1,18 +1,24 @@
+import 'reflect-metadata';
 import 'dotenv/config';
 import { App } from './app';
 import { Logger } from './shared/utils/logger';
+import { sequelize, connectDatabase } from './config/database';
+import { initWhatsappBot } from './whatsapp';
 
 const logger = new Logger('Server');
 const app = new App();
 const port = parseInt(process.env.PORT || '3000', 10);
 
 // Iniciar servidor
-import 'reflect-metadata'; // TypeORM requirement
-import { AppDataSource } from './data-source';
+connectDatabase()
+  .then(async () => {
+    // Iniciar Bot de WhatsApp
+    try {
+      await initWhatsappBot();
+    } catch (error) {
+      logger.error('Failed to start WhatsApp Bot', { error });
+    }
 
-// Iniciar servidor
-AppDataSource.initialize()
-  .then(() => {
     logger.info('Database connected successfully');
 
     const server = app.getApp().listen(port, () => {
@@ -52,7 +58,7 @@ AppDataSource.initialize()
     const shutdown = (signal: string) => {
       logger.info(`${signal} received, closing server...`);
       server.close(async () => {
-        await AppDataSource.destroy();
+        await sequelize.close();
         logger.info('Database disconnected');
         logger.info('Server closed');
         process.exit(0);

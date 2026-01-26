@@ -1,13 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
 import { Logger } from '../../shared/utils/logger';
 import * as crypto from 'crypto';
-import { AppDataSource } from '../../data-source';
-import { Payment } from '../../entity/Payment';
-import { ParkingSession } from '../../entity/ParkingSession';
+import { Payment } from '../../models/Payment';
+import { ParkingSession } from '../../models/ParkingSession';
+import { Vehicle } from '../../models/Vehicle';
+import { ParkingLot } from '../../models/ParkingLot';
+import { WhatsAppConversation } from '../../models/WhatsAppConversation';
+import { WhatsAppContact } from '../../models/WhatsAppContact';
+import { sendWhatsAppMessage, sendWhatsAppFile } from '../../whatsapp/services/WhatsAppService';
+import { ReceiptService } from '../../shared/services/ReceiptService';
 
 const logger = new Logger('WebhookController');
-const paymentRepository = AppDataSource.getRepository(Payment);
-const sessionRepository = AppDataSource.getRepository(ParkingSession);
 
 /**
  * Valida el apikey del header usando SHA256
@@ -44,9 +47,6 @@ export class WebhookController {
         orderId: order.order_id,
       });
 
-      // Podríamos verificar si existe la patente o si el monto coincide
-      // Por ahora respondemos 200 OK para permitir la creación
-
       res.status(200).json(order);
     } catch (error) {
       logger.error('Webhook validation error:', error);
@@ -69,39 +69,136 @@ export class WebhookController {
         status: order.status,
       });
 
-      // Validar autenticación
       if (!validateApikey(headerApikey, order)) {
         logger.warn('Invalid Apikey in confirm webhook');
-        // Aún así respondemos 200 pero no procesamos? O 403?
-        // Klap reintentará si no es 200. Si la key es mala, quizás mejor 200 para que pare?
-        // Vamos a lanzar error por seguridad.
         throw new Error('Error en autenticación');
       }
 
-      // Procesar pago exitoso (TypeORM)
-      const payment = await paymentRepository.findOne({
+      const payment = await Payment.findOne({
         where: { order_id: order.order_id },
-        relations: ["parkingSession"]
+        include: [ParkingSession]
       });
 
       if (payment) {
-        // Actualizar Pago
-        payment.status = 'COMPLETED';
-        payment.mc_code = order.mc_code;
-        payment.completed_at = new Date();
-        await paymentRepository.save(payment);
+        await payment.update({
+          status: 'COMPLETED',
+          mc_code: order.mc_code,
+          completed_at: new Date()
+        });
 
-        // Actualizar Sesión
-        if (payment.parkingSession) {
-          const session = payment.parkingSession;
-          session.status = 'PAID';
-          session.exit_time = new Date(); // Asumimos salida/pago
-          await sessionRepository.save(session);
+        const session = await ParkingSession.findByPk(payment.id_parking_sessions, {
+          include: [Vehicle, ParkingLot]
+        });
+
+        if (session) {
+          await session.update({
+            status: 'PAID',
+            exit_time: new Date()
+          });
+
+          // Buscar el contacto de WhatsApp asociado a esta sesión
+          const conversation = await WhatsAppConversation.findOne({
+            where: { id_parking_sessions: session.id_parking_sessions },
+            include: [WhatsAppContact],
+            order: [['created_at', 'DESC']]
+          });
+
+          if (conversation && conversation.whatsappContact) {
+            const phoneNumber = conversation.whatsappContact.phone_number;
+            const vehicle = session.vehicle;
+            const licensePlate = vehicle?.license_plate || 'N/A';
+            const parkingLot = session.parkingLot;
+
+            const confirmationMessage =
+              `✅ *Pago Confirmado*\n\n` +
+              `Tu pago de *$${payment.amount.toLocaleString('es-CL')}* para el vehículo *${licensePlate}* ` +
+              `ha sido procesado exitosamente.\n\n` +
+              `Código de transacción: ${order.mc_code}\n\n` +
+              `¡Gracias por usar REVIA! 🚗`;
+
+            // Enviar mensaje de confirmación por WhatsApp
+            const messageSent = await sendWhatsAppMessage(phoneNumber, confirmationMessage);
+
+            if (messageSent) {
+              // Guardar el mensaje enviado en la base de datos
+              await WhatsAppConversation.create({
+                id_whatsapp_contacts: conversation.id_whatsapp_contacts,
+                id_parking_sessions: session.id_parking_sessions,
+                message_type: 'outgoing',
+                message_content: confirmationMessage,
+                flow_step: 'payment_confirmed',
+                metadata: {
+                  orderId: order.order_id,
+                  mcCode: order.mc_code,
+                  amount: payment.amount,
+                  licensePlate: licensePlate
+                }
+              });
+
+              logger.info('Payment confirmation sent via WhatsApp', {
+                phoneNumber,
+                licensePlate,
+                orderId: order.order_id
+              });
+
+              // Generar y enviar boleta
+              try {
+                const receiptData = {
+                  receiptNumber: `${session.id_parking_sessions}-${Date.now()}`,
+                  licensePlate: licensePlate,
+                  arrivalTime: session.arrival_time,
+                  exitTime: session.exit_time || new Date(),
+                  amount: payment.amount,
+                  transactionCode: order.mc_code || payment.order_id,
+                  parkingLotName: parkingLot?.name
+                };
+
+                const receiptPath = await ReceiptService.generateReceipt(receiptData);
+
+                // Enviar boleta por WhatsApp
+                const receiptSent = await sendWhatsAppFile(
+                  phoneNumber,
+                  receiptPath,
+                  '📄 Tu boleta de estacionamiento'
+                );
+
+                if (receiptSent) {
+                  logger.info('Receipt sent via WhatsApp', {
+                    phoneNumber,
+                    licensePlate,
+                    receiptPath
+                  });
+
+                  // Eliminar archivo después de enviar (opcional)
+                  setTimeout(() => {
+                    ReceiptService.deleteReceipt(receiptPath).catch(err =>
+                      logger.error('Error deleting receipt file', { err })
+                    );
+                  }, 60000); // Eliminar después de 1 minuto
+                } else {
+                  logger.warn('Failed to send receipt via WhatsApp', {
+                    phoneNumber,
+                    receiptPath
+                  });
+                }
+              } catch (error) {
+                logger.error('Error generating/sending receipt', {
+                  error,
+                  licensePlate,
+                  sessionId: session.id_parking_sessions
+                });
+              }
+            }
+          } else {
+            logger.warn('No WhatsApp contact found for session', {
+              sessionId: session.id_parking_sessions
+            });
+          }
         }
 
         logger.info('Payment and Session updated to PAID', {
           orderId: order.order_id,
-          sessionId: payment.parkingSession?.id_parking_sessions
+          sessionId: payment.id_parking_sessions
         });
       } else {
         logger.warn('Payment record not found for webhook', { orderId: order.order_id });
@@ -129,19 +226,15 @@ export class WebhookController {
         status: order.status,
       });
 
-      // Validar autenticación
       if (!validateApikey(headerApikey, order)) {
         logger.warn('Invalid Apikey in reject webhook');
         throw new Error('Error en autenticación');
       }
 
-      // Actualizar pago a REJECTED
-      const payment = await paymentRepository.findOneBy({ order_id: order.order_id });
+      const payment = await Payment.findOne({ where: { order_id: order.order_id } });
 
       if (payment) {
-        payment.status = 'REJECTED';
-        await paymentRepository.save(payment);
-
+        await payment.update({ status: 'REJECTED' });
         logger.info('Payment status updated to REJECTED', { orderId: order.order_id });
       }
 

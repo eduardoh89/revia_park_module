@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
-import { AppDataSource } from '../../data-source';
-import { ParkingLot } from '../../entity/ParkingLot';
+import { ParkingLot } from '../../models/ParkingLot';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ParkingLotController');
-const parkingLotRepository = AppDataSource.getRepository(ParkingLot);
 
 export class ParkingLotController {
     /**
@@ -13,7 +11,7 @@ export class ParkingLotController {
      */
     static async getAll(req: Request, res: Response) {
         try {
-            const parkingLots = await parkingLotRepository.find();
+            const parkingLots = await ParkingLot.findAll();
 
             res.json({
                 success: true,
@@ -21,8 +19,6 @@ export class ParkingLotController {
                     id: lot.id_parking_lots,
                     name: lot.name,
                     address: lot.address,
-                    ratePerHour: lot.rate_per_hour,
-                    minAmount: lot.min_amount,
                 })),
             });
         } catch (error) {
@@ -41,7 +37,7 @@ export class ParkingLotController {
     static async getById(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const parkingLot = await parkingLotRepository.findOneBy({ id_parking_lots: parseInt(id) });
+            const parkingLot = await ParkingLot.findByPk(parseInt(id));
 
             if (!parkingLot) {
                 return res.status(404).json({
@@ -58,9 +54,6 @@ export class ParkingLotController {
                     address: parkingLot.address,
                     phone: parkingLot.phone,
                     email: parkingLot.email,
-                    ratePerHour: parkingLot.rate_per_hour,
-                    ratePerMinute: parkingLot.rate_per_minute,
-                    minAmount: parkingLot.min_amount,
                 },
             });
         } catch (error) {
