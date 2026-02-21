@@ -10,43 +10,43 @@ export class ParkingLotRate extends Model {
     @PrimaryKey
     @AutoIncrement
     @Column(DataType.INTEGER)
-    id_parking_lot_rates!: number;
+    declare id_parking_lot_rates: number;
 
     @Column({
         type: DataType.INTEGER,
         allowNull: false
     })
-    rate_per_hour!: number;
+    declare rate_per_hour: number;
 
     @Column({
         type: DataType.INTEGER,
         allowNull: true
     })
-    rate_per_minute?: number;
+    declare rate_per_minute: number;
 
     @Column({
         type: DataType.INTEGER,
         allowNull: true
     })
-    min_amount?: number;
+    declare min_amount: number;
 
     @ForeignKey(() => ParkingLot)
     @Column({
         type: DataType.INTEGER,
         allowNull: false
     })
-    id_parking_lots!: number;
+    declare id_parking_lots: number;
 
     @BelongsTo(() => ParkingLot)
-    parkingLot!: ParkingLot;
+    declare parkingLot: ParkingLot;
 
     @ForeignKey(() => VehicleType)
     @Column({
         type: DataType.INTEGER,
         allowNull: false
     })
-    id_vehicle_types!: number;
+    declare id_vehicle_types: number;
 
     @BelongsTo(() => VehicleType)
-    vehicleType!: VehicleType;
+    declare vehicleType: VehicleType;
 }

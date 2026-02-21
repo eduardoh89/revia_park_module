@@ -7,6 +7,15 @@ import { ParkingSession } from '../models/ParkingSession';
 import { Payment } from '../models/Payment';
 import { WhatsAppContact } from '../models/WhatsAppContact';
 import { WhatsAppConversation } from '../models/WhatsAppConversation';
+import { ModuleItem } from '../models/ModuleItem';
+import { Module } from '../models/Module';
+import { Company } from '../models/Company';
+import { ContractType } from '../models/ContractType';
+import { VehicleRate } from '../models/VehicleRate';
+import { VehicleRateConfig } from '../models/VehicleRateConfig';
+import { ContractRate } from '../models/ContractRate';
+import { ContractRateConfig } from '../models/ContractRateConfig';
+import { QRConfig } from '../models/QRConfig';
 
 export const sequelize = new Sequelize({
     dialect: 'mysql',
@@ -31,7 +40,16 @@ export const sequelize = new Sequelize({
         ParkingSession,
         Payment,
         WhatsAppContact,
-        WhatsAppConversation
+        WhatsAppConversation,
+        ModuleItem,
+        Module,
+        Company,
+        ContractType,
+        VehicleRate,
+        VehicleRateConfig,
+        ContractRate,
+        ContractRateConfig,
+        QRConfig
     ],
     pool: {
         max: 5,

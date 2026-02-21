@@ -3,6 +3,16 @@ import paymentRoutes from './payment.routes';
 import webhookRoutes from './webhook.routes';
 import vehicleRoutes from './vehicle.routes';
 import parkingLotRoutes from './parkingLot.routes';
+import vehicleTypeRoutes from './vehicleType.routes';
+import moduleItemRoutes from './moduleItem.routes';
+import moduleRoutes from './module.routes';
+import companyRoutes from './company.routes';
+import contractTypeRoutes from './contractType.routes';
+import vehicleRateRoutes from './vehicleRate.routes';
+import vehicleRateConfigRoutes from './vehicleRateConfig.routes';
+import contractRateRoutes from './contractRate.routes';
+import contractRateConfigRoutes from './contractRateConfig.routes';
+import { QRConfigController } from '../controllers/QRConfigController';
 
 const router = Router();
 
@@ -14,11 +24,23 @@ router.get('/', (req: Request, res: Response) => {
   });
 });
 
+// Redirección QR → WhatsApp
+router.get('/r/:slug', QRConfigController.redirect);
+
 // Montar rutas con prefijo /api/v1
 router.use('/api/v1/payments', paymentRoutes);
 router.use('/api/v1/payment', paymentRoutes); // Alias para soportar configuración singular
 router.use('/api/v1/webhooks', webhookRoutes);
 router.use('/api/v1/vehicles', vehicleRoutes);
 router.use('/api/v1/parking-lots', parkingLotRoutes);
+router.use('/api/v1/vehicle-types', vehicleTypeRoutes);
+router.use('/api/v1/module-items', moduleItemRoutes);
+router.use('/api/v1/modules', moduleRoutes);
+router.use('/api/v1/companies', companyRoutes);
+router.use('/api/v1/contract-types', contractTypeRoutes);
+router.use('/api/v1/vehicle-rates', vehicleRateRoutes);
+router.use('/api/v1/vehicle-rate-configs', vehicleRateConfigRoutes);
+router.use('/api/v1/contract-rates', contractRateRoutes);
+router.use('/api/v1/contract-rate-configs', contractRateConfigRoutes);
 
 export default router;

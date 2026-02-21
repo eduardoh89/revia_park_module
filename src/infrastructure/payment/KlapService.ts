@@ -52,7 +52,7 @@ export class KlapService {
           total: Math.round(request.amount),
         },
         user: {
-          email: request.userEmail || 'cliente@revia.cl',
+          email: 'joshuab@revia.cl',
         },
         urls: {
           return_url: `${process.env.APP_URL}/api/v1/payment/success`,
@@ -69,7 +69,7 @@ export class KlapService {
           // Notificaciones
           { key: 'notify_payment_user', value: 'true' },
           { key: 'notify_payment_merchant', value: 'true' },
-          { key: 'notify_payment_email_merchant', value: process.env.MERCHANT_EMAIL || 'josh.yzxt@gmail.com' },
+          { key: 'notify_payment_email_merchant', value: 'joshuab@revia.cl' },
 
           // Pago sin cuotas (pago único)
           //  { key: 'tarjetas_quotas_allowed', value: '1' },

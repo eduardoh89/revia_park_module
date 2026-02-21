@@ -1,14 +1,14 @@
 import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType } from 'sequelize-typescript';
 
 @Table({
-    tableName: 'vehicle_types',
+    tableName: 'vehicle_rate_configs',
     timestamps: false
 })
-export class VehicleType extends Model {
+export class VehicleRateConfig extends Model {
     @PrimaryKey
     @AutoIncrement
     @Column(DataType.INTEGER)
-    declare id_vehicle_types: number;
+    declare id_vehicle_rate_configs: number;
 
     @Column({
         type: DataType.STRING(45),
@@ -17,7 +17,13 @@ export class VehicleType extends Model {
     declare name: string;
 
     @Column({
-        type: DataType.STRING(100),
+        type: DataType.STRING(60),
+        allowNull: false
+    })
+    declare fields: string;
+
+    @Column({
+        type: DataType.TEXT('medium'),
         allowNull: true
     })
     declare description: string;
