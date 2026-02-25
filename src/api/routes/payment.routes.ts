@@ -4,9 +4,14 @@ import { PaymentController } from '../controllers/PaymentController';
 const router = Router();
 
 /**
- * POST /api/v1/payments/create
+ * POST /api/v1/payments/create-link
  * Crear link de pago temporal (usado por WhatsApp Bot)
- * Retorna: { paymentUrl, expiresAt, amount, licensePlate }
+ */
+router.post('/create-link', PaymentController.createPaymentLink);
+
+/**
+ * POST /api/v1/payments/create
+ * Alias para compatibilidad con WhatsApp Bot
  */
 router.post('/create', PaymentController.createPaymentLink);
 
@@ -33,5 +38,35 @@ router.get('/cancel', PaymentController.cancel);
  * Página de error
  */
 router.get('/error', PaymentController.error);
+
+/**
+ * GET /api/v1/payments
+ * Listar todos los pagos
+ */
+router.get('/', PaymentController.getAll);
+
+/**
+ * POST /api/v1/payments
+ * Crear un pago directamente
+ */
+router.post('/', PaymentController.create);
+
+/**
+ * GET /api/v1/payments/:id
+ * Obtener un pago por ID
+ */
+router.get('/:id', PaymentController.getById);
+
+/**
+ * PUT /api/v1/payments/:id
+ * Actualizar un pago
+ */
+router.put('/:id', PaymentController.update);
+
+/**
+ * DELETE /api/v1/payments/:id
+ * Eliminar un pago
+ */
+router.delete('/:id', PaymentController.delete);
 
 export default router;

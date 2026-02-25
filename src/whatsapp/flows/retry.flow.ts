@@ -145,13 +145,15 @@ const retryFlow = addKeyword(['🔄 Reintentar', '🔄 Otra patente', 'reintenta
             }
 
             // 6. Calcular tiempo transcurrido
-            const arrivalTime = new Date(session.arrival_time);
+            const arrivalTime = new Date(session.arrival_time!);
             const now = new Date();
             const diffMs = now.getTime() - arrivalTime.getTime();
             const diffMinutes = Math.floor(diffMs / 60000);
             const hours = Math.floor(diffMinutes / 60);
             const minutes = diffMinutes % 60;
-            const tiempoTranscurrido = `${hours} horas ${minutes} minutos`;
+            const tiempoTranscurrido = hours > 0
+                ? `${hours} hora${hours > 1 ? 's' : ''} ${minutes} minuto${minutes !== 1 ? 's' : ''}`
+                : `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
 
             // 7. Generar link de pago
             let paymentUrl = '';
@@ -186,7 +188,8 @@ const retryFlow = addKeyword(['🔄 Reintentar', '🔄 Otra patente', 'reintenta
             // 8. Enviar información del vehículo
             const horaIngreso = arrivalTime.toLocaleTimeString('es-CL', {
                 hour: '2-digit',
-                minute: '2-digit'
+                minute: '2-digit',
+                hour12: false
             });
 
             const vehicleInfoMessage =

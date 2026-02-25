@@ -1,7 +1,8 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo, CreatedAt } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import { ParkingSession } from './ParkingSession';
+import { PaymentMethod } from './PaymentMethod';
 
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'REJECTED';
+export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'REJECTED' | 'VOIDED';
 
 @Table({
     tableName: 'payments',
@@ -14,43 +15,36 @@ export class Payment extends Model {
     declare id_payments: number;
 
     @Column({
-        type: DataType.STRING,
-        allowNull: false,
-        unique: true
-    })
-    declare order_id: string;
-
-    @Column({
-        type: DataType.STRING,
-        allowNull: false
-    })
-    declare reference_id: string;
-
-    @Column({
         type: DataType.INTEGER,
         allowNull: false
     })
     declare amount: number;
 
     @Column({
-        type: DataType.ENUM('PENDING', 'COMPLETED', 'REJECTED'),
+        type: DataType.STRING(100),
+        allowNull: false
+    })
+    declare order_id: string;
+
+    @Column({
+        type: DataType.ENUM('PENDING', 'COMPLETED', 'REJECTED', 'VOIDED'),
         defaultValue: 'PENDING',
         allowNull: false
     })
     declare status: PaymentStatus;
 
     @Column({
-        type: DataType.STRING,
+        type: DataType.STRING(50),
         allowNull: true
     })
     declare mc_code?: string;
 
-    @CreatedAt
     @Column({
         type: DataType.DATE,
+        allowNull: true,
         field: 'created_at'
     })
-    declare created_at: Date;
+    declare created_at?: Date;
 
     @Column({
         type: DataType.DATE,
@@ -58,31 +52,11 @@ export class Payment extends Model {
     })
     declare completed_at?: Date;
 
-    // Campos de payment_links (migrados a payments)
     @Column({
-        type: DataType.STRING(100),
-        allowNull: true,
-        unique: true,
-        comment: 'Código único para el link de pago (UUID)'
+        type: DataType.INTEGER,
+        allowNull: true
     })
-    declare link_code?: string;
-
-    @Column({
-        type: DataType.BOOLEAN,
-        defaultValue: false,
-        allowNull: true,
-        field: 'link_is_used',
-        comment: 'Indica si el link ya fue usado'
-    })
-    declare link_is_used?: boolean;
-
-    @Column({
-        type: DataType.DATE,
-        allowNull: true,
-        field: 'link_expires_at',
-        comment: 'Fecha y hora de expiración del link (5 minutos desde creación)'
-    })
-    declare link_expires_at?: Date;
+    declare id_users?: number;
 
     @ForeignKey(() => ParkingSession)
     @Column({
@@ -94,19 +68,13 @@ export class Payment extends Model {
     @BelongsTo(() => ParkingSession)
     declare parkingSession: ParkingSession;
 
-    /**
-     * Verifica si el link está expirado
-     */
-    isLinkExpired(): boolean {
-        if (!this.link_expires_at) return true;
-        return new Date() > this.link_expires_at;
-    }
+    @ForeignKey(() => PaymentMethod)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: false
+    })
+    declare id_payment_methods: number;
 
-    /**
-     * Verifica si el link es válido (no usado y no expirado)
-     */
-    isLinkValid(): boolean {
-        if (!this.link_code) return false;
-        return !this.link_is_used && !this.isLinkExpired();
-    }
+    @BelongsTo(() => PaymentMethod)
+    declare paymentMethod: PaymentMethod;
 }
