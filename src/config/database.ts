@@ -2,9 +2,12 @@ import { Sequelize } from 'sequelize-typescript';
 import { VehicleType } from '../models/VehicleType';
 import { Vehicle } from '../models/Vehicle';
 import { ParkingLot } from '../models/ParkingLot';
-import { ParkingLotRate } from '../models/ParkingLotRate';
+import { Contract } from '../models/Contract';
 import { ParkingSession } from '../models/ParkingSession';
+import { PaymentMethod } from '../models/PaymentMethod';
 import { Payment } from '../models/Payment';
+import { PaymentLink } from '../models/PaymentLink';
+import { CreditNote } from '../models/CreditNote';
 import { WhatsAppContact } from '../models/WhatsAppContact';
 import { WhatsAppConversation } from '../models/WhatsAppConversation';
 import { ModuleItem } from '../models/ModuleItem';
@@ -16,6 +19,8 @@ import { VehicleRateConfig } from '../models/VehicleRateConfig';
 import { ContractRate } from '../models/ContractRate';
 import { ContractRateConfig } from '../models/ContractRateConfig';
 import { QRConfig } from '../models/QRConfig';
+import { ExceptionType } from '../models/ExceptionType';
+import { Exception } from '../models/Exception';
 
 export const sequelize = new Sequelize({
     dialect: 'mysql',
@@ -36,20 +41,25 @@ export const sequelize = new Sequelize({
         VehicleType,
         Vehicle,
         ParkingLot,
-        ParkingLotRate,
+        Company,
+        ContractType,
+        Contract,
         ParkingSession,
+        PaymentMethod,
         Payment,
+        PaymentLink,
+        CreditNote,
         WhatsAppContact,
         WhatsAppConversation,
         ModuleItem,
         Module,
-        Company,
-        ContractType,
         VehicleRate,
         VehicleRateConfig,
         ContractRate,
         ContractRateConfig,
-        QRConfig
+        QRConfig,
+        ExceptionType,
+        Exception
     ],
     pool: {
         max: 5,

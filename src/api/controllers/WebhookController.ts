@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response } from 'express';
 import { Logger } from '../../shared/utils/logger';
 import * as crypto from 'crypto';
 import { Payment } from '../../models/Payment';
@@ -7,8 +7,7 @@ import { Vehicle } from '../../models/Vehicle';
 import { ParkingLot } from '../../models/ParkingLot';
 import { WhatsAppConversation } from '../../models/WhatsAppConversation';
 import { WhatsAppContact } from '../../models/WhatsAppContact';
-import { sendWhatsAppMessage, sendWhatsAppFile } from '../../whatsapp/services/WhatsAppService';
-import { ReceiptService } from '../../shared/services/ReceiptService';
+import { sendWhatsAppMessage } from '../../whatsapp/services/WhatsAppService';
 
 const logger = new Logger('WebhookController');
 
@@ -76,7 +75,7 @@ export class WebhookController {
 
       const payment = await Payment.findOne({
         where: { order_id: order.order_id },
-        include: [ParkingSession]
+        include: [{ model: ParkingSession }]
       });
 
       if (payment) {
@@ -87,19 +86,23 @@ export class WebhookController {
         });
 
         const session = await ParkingSession.findByPk(payment.id_parking_sessions, {
-          include: [Vehicle, ParkingLot]
+          include: [
+            { model: Vehicle, as: 'vehicle' },
+            { model: ParkingLot }
+          ]
         });
 
         if (session) {
           await session.update({
-            status: 'PAID',
-            exit_time: new Date()
+            status: 'EXITED_PAID',
+            //exit_time: new Date(),
+            pay_time: new Date()
           });
 
           // Buscar el contacto de WhatsApp asociado a esta sesión
           const conversation = await WhatsAppConversation.findOne({
             where: { id_parking_sessions: session.id_parking_sessions },
-            include: [WhatsAppContact],
+            include: [{ model: WhatsAppContact }],
             order: [['created_at', 'DESC']]
           });
 
@@ -141,53 +144,6 @@ export class WebhookController {
                 orderId: order.order_id
               });
 
-              // Generar y enviar boleta
-              try {
-                const receiptData = {
-                  receiptNumber: `${session.id_parking_sessions}-${Date.now()}`,
-                  licensePlate: licensePlate,
-                  arrivalTime: session.arrival_time,
-                  exitTime: session.exit_time || new Date(),
-                  amount: payment.amount,
-                  transactionCode: order.mc_code || payment.order_id,
-                  parkingLotName: parkingLot?.name
-                };
-
-                const receiptPath = await ReceiptService.generateReceipt(receiptData);
-
-                // Enviar boleta por WhatsApp
-                const receiptSent = await sendWhatsAppFile(
-                  phoneNumber,
-                  receiptPath,
-                  '📄 Tu boleta de estacionamiento'
-                );
-
-                if (receiptSent) {
-                  logger.info('Receipt sent via WhatsApp', {
-                    phoneNumber,
-                    licensePlate,
-                    receiptPath
-                  });
-
-                  // Eliminar archivo después de enviar (opcional)
-                  setTimeout(() => {
-                    ReceiptService.deleteReceipt(receiptPath).catch(err =>
-                      logger.error('Error deleting receipt file', { err })
-                    );
-                  }, 60000); // Eliminar después de 1 minuto
-                } else {
-                  logger.warn('Failed to send receipt via WhatsApp', {
-                    phoneNumber,
-                    receiptPath
-                  });
-                }
-              } catch (error) {
-                logger.error('Error generating/sending receipt', {
-                  error,
-                  licensePlate,
-                  sessionId: session.id_parking_sessions
-                });
-              }
             }
           } else {
             logger.warn('No WhatsApp contact found for session', {

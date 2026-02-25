@@ -12,6 +12,13 @@ import vehicleRateRoutes from './vehicleRate.routes';
 import vehicleRateConfigRoutes from './vehicleRateConfig.routes';
 import contractRateRoutes from './contractRate.routes';
 import contractRateConfigRoutes from './contractRateConfig.routes';
+import parkingSessionRoutes from './parkingSession.routes';
+import paymentMethodRoutes from './paymentMethod.routes';
+import creditNoteRoutes from './creditNote.routes';
+import paymentLinkRoutes from './paymentLink.routes';
+import exceptionTypeRoutes from './exceptionType.routes';
+import exceptionRoutes from './exception.routes';
+import contractRoutes from './contract.routes';
 import { QRConfigController } from '../controllers/QRConfigController';
 
 const router = Router();
@@ -42,5 +49,12 @@ router.use('/api/v1/vehicle-rates', vehicleRateRoutes);
 router.use('/api/v1/vehicle-rate-configs', vehicleRateConfigRoutes);
 router.use('/api/v1/contract-rates', contractRateRoutes);
 router.use('/api/v1/contract-rate-configs', contractRateConfigRoutes);
+router.use('/api/v1/parking-sessions', parkingSessionRoutes);
+router.use('/api/v1/payment-methods', paymentMethodRoutes);
+router.use('/api/v1/credit-notes', creditNoteRoutes);
+router.use('/api/v1/payment-links', paymentLinkRoutes);
+router.use('/api/v1/exception-types', exceptionTypeRoutes);
+router.use('/api/v1/exceptions', exceptionRoutes);
+router.use('/api/v1/contracts', contractRoutes);
 
 export default router;

@@ -38,7 +38,7 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
                 order: [['created_at', 'DESC']],
                 include: [{
                     model: ParkingSession,
-                    include: [Vehicle]
+                    include: [{ model: Vehicle, as: 'vehicle' }]
                 }]
             });
 
@@ -49,9 +49,12 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
 
             const session = lastConversation.parkingSession;
 
+   
+            
+
             // Verificar que la sesión siga en estado PARKED
             if (session.status !== 'PARKED') {
-                const message = session.status === 'PAID'
+                const message = session.status === 'EXITED_PAID'
                     ? '✅ Tu sesión ya fue pagada. No es necesario generar un nuevo link.'
                     : '❌ No se puede generar un nuevo link. La sesión no está activa.';
 
@@ -71,7 +74,8 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
             // Generar nuevo link de pago
             try {
                 const paymentLinkService = new PaymentLinkService();
-                const paymentResult = await paymentLinkService.createPaymentLink(
+                
+                const paymentResult = await paymentLinkService.renewPaymentLink(
                     patente,
                     session.id_parking_sessions
                 );

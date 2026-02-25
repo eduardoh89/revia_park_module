@@ -3,8 +3,8 @@ import { Vehicle } from '../../models/Vehicle';
 import { VehicleType } from '../../models/VehicleType';
 import { ParkingSession, SessionStatus } from '../../models/ParkingSession';
 import { ParkingLot } from '../../models/ParkingLot';
-import { ParkingLotRate } from '../../models/ParkingLotRate';
 import { Logger } from '../../shared/utils/logger';
+import { PaymentLinkService } from '../../whatsapp/services/PaymentLinkService';
 
 const logger = new Logger('VehicleController');
 
@@ -250,38 +250,11 @@ export class VehicleController {
     }
 
     /**
-     * Calcular el monto a pagar basado en la tarifa del estacionamiento y tipo de vehículo
+     * Calcular el monto a pagar usando VehicleRate/VehicleRateConfig
      */
-    static async calculateAmount(parkingLotId: number, vehicleTypeId: number, arrivalTime: Date): Promise<number> {
-        const rate = await ParkingLotRate.findOne({
-            where: {
-                id_parking_lots: parkingLotId,
-                id_vehicle_types: vehicleTypeId,
-            },
-        });
-
-        if (!rate) {
-            throw new Error(`No se encontró tarifa para el estacionamiento ${parkingLotId} y tipo de vehículo ${vehicleTypeId}`);
-        }
-
-        const now = new Date();
-        const diffMs = now.getTime() - arrivalTime.getTime();
-        const diffMinutes = Math.ceil(diffMs / 60000);
-
-        let amount = 0;
-
-        if (rate.rate_per_minute) {
-            amount = diffMinutes * rate.rate_per_minute;
-        } else {
-            const hours = Math.ceil(diffMinutes / 60);
-            amount = hours * rate.rate_per_hour;
-        }
-
-        if (rate.min_amount && amount < rate.min_amount) {
-            amount = rate.min_amount;
-        }
-
-        return amount;
+    static async calculateAmount(sessionId: number): Promise<number> {
+        const service = new PaymentLinkService();
+        return service.calculateAmount(sessionId);
     }
 
     /**
@@ -396,14 +369,14 @@ export class VehicleController {
                         model: Vehicle,
                         where: { license_plate: plate }
                     }],
-                    where: { status: 'PAID' },
+                    where: { status: 'EXITED_PAID' },
                     order: [['exit_time', 'DESC']]
                 });
 
                 if (lastPaidSession) {
                     return res.json({
                         success: true,
-                        status: 'PAID',
+                        status: 'EXITED_PAID',
                         message: 'El vehículo puede salir',
                         canExit: true
                     });
@@ -417,11 +390,8 @@ export class VehicleController {
 
             let estimatedAmount = 0;
             try {
-                const vehicle = await Vehicle.findByPk(session.id_vehicles);
                 estimatedAmount = await VehicleController.calculateAmount(
-                    session.id_parking_lots,
-                    vehicle!.id_vehicle_types,
-                    session.arrival_time
+                    session.id_parking_sessions
                 );
             } catch (error) {
                 logger.warn('Could not calculate amount', { error });
@@ -437,7 +407,7 @@ export class VehicleController {
                     status: session.status,
                     arrivalTime: session.arrival_time,
                     estimatedAmount: estimatedAmount,
-                    canExit: session.status === 'PAID',
+                    canExit: session.status === 'EXITED_PAID',
                 },
             });
         } catch (error) {
