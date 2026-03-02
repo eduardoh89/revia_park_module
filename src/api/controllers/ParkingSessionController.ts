@@ -1,8 +1,13 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import { ParkingSession } from '../../models/ParkingSession';
 import { Vehicle } from '../../models/Vehicle';
+import { VehicleType } from '../../models/VehicleType';
+import { VehicleRate } from '../../models/VehicleRate';
+import { VehicleRateConfig } from '../../models/VehicleRateConfig';
 import { ParkingLot } from '../../models/ParkingLot';
 import { Contract } from '../../models/Contract';
+import { UnidentifiedVehicle } from '../../models/UnidentifiedVehicle';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ParkingSessionController');
@@ -25,9 +30,19 @@ export class ParkingSessionController {
             const sessions = await ParkingSession.findAll({
                 where,
                 include: [
-                    { model: Vehicle, as: 'vehicle' },
+                    {
+                        model: Vehicle, as: 'vehicle',
+                        include: [{
+                            model: VehicleType,
+                            include: [{
+                                model: VehicleRate,
+                                include: [{ model: VehicleRateConfig }]
+                            }]
+                        }]
+                    },
                     { model: ParkingLot },
-                    { model: Contract, required: false }
+                    { model: Contract, required: false },
+                    { model: UnidentifiedVehicle, required: false }
                 ],
                 order: [['arrival_time', 'DESC']]
             });
@@ -52,12 +67,22 @@ export class ParkingSessionController {
     static async getById(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const session = await ParkingSession.findByPk(parseInt(id), {
+            const parsedId = parseInt(id);
+
+            if (isNaN(parsedId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El id debe ser un número válido'
+                });
+            }
+
+            const session = await ParkingSession.findByPk(parsedId, {
                 include: [
                     { model: Vehicle, as: 'vehicle' },
                     { model: Vehicle, as: 'trailer', required: false },
                     { model: ParkingLot },
-                    { model: Contract, required: false }
+                    { model: Contract, required: false },
+                    { model: UnidentifiedVehicle, required: false }
                 ]
             });
 
@@ -93,6 +118,7 @@ export class ParkingSessionController {
                 id_vehicles,
                 id_trailer,
                 id_contracts,
+                id_unidentified_vehicles,
                 status,
                 has_trailer_entry,
                 has_trailer_exit
@@ -150,14 +176,16 @@ export class ParkingSessionController {
                 id_parking_lots,
                 id_vehicles,
                 id_trailer: id_trailer || null,
-                id_contracts: id_contracts || null
+                id_contracts: id_contracts || null,
+                id_unidentified_vehicles: id_unidentified_vehicles || null
             });
 
             const created = await ParkingSession.findByPk(session.id_parking_sessions, {
                 include: [
                     { model: Vehicle, as: 'vehicle' },
                     { model: ParkingLot },
-                    { model: Contract, required: false }
+                    { model: Contract, required: false },
+                    { model: UnidentifiedVehicle, required: false }
                 ]
             });
 
@@ -191,7 +219,8 @@ export class ParkingSessionController {
                 has_trailer_entry,
                 has_trailer_exit,
                 id_trailer,
-                id_contracts
+                id_contracts,
+                id_unidentified_vehicles
             } = req.body;
 
             const session = await ParkingSession.findByPk(parseInt(id));
@@ -211,7 +240,8 @@ export class ParkingSessionController {
                 ...(has_trailer_entry !== undefined && { has_trailer_entry }),
                 ...(has_trailer_exit !== undefined && { has_trailer_exit }),
                 ...(id_trailer !== undefined && { id_trailer }),
-                ...(id_contracts !== undefined && { id_contracts })
+                ...(id_contracts !== undefined && { id_contracts }),
+                ...(id_unidentified_vehicles !== undefined && { id_unidentified_vehicles })
             });
 
             const updated = await ParkingSession.findByPk(session.id_parking_sessions, {
@@ -219,7 +249,8 @@ export class ParkingSessionController {
                     { model: Vehicle, as: 'vehicle' },
                     { model: Vehicle, as: 'trailer', required: false },
                     { model: ParkingLot },
-                    { model: Contract, required: false }
+                    { model: Contract, required: false },
+                    { model: UnidentifiedVehicle, required: false }
                 ]
             });
 
@@ -290,7 +321,8 @@ export class ParkingSessionController {
                 include: [
                     { model: Vehicle, as: 'vehicle' },
                     { model: ParkingLot },
-                    { model: Contract, required: false }
+                    { model: Contract, required: false },
+                    { model: UnidentifiedVehicle, required: false }
                 ],
                 order: [['arrival_time', 'ASC']]
             });
@@ -305,6 +337,55 @@ export class ParkingSessionController {
             res.status(500).json({
                 success: false,
                 error: 'Error al obtener sesiones activas'
+            });
+        }
+    }
+
+    /**
+     * POST /api/v1/parking-sessions/by-date
+     * Obtener sesiones por fecha (arrival_time), solo ParkingSession + Vehicle
+     */
+    static async getByDate(req: Request, res: Response) {
+        try {
+            const { date } = req.body;
+
+            if (!date) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El campo date es obligatorio (formato: YYYY-MM-DD)'
+                });
+            }
+
+            const start = new Date(`${date}T00:00:00.000Z`);
+            const end = new Date(`${date}T23:59:59.999Z`);
+
+            if (isNaN(start.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Formato de fecha inválido. Use YYYY-MM-DD'
+                });
+            }
+
+            const sessions = await ParkingSession.findAll({
+                where: {
+                    arrival_time: { [Op.between]: [start, end] }
+                },
+                include: [
+                    { model: Vehicle, as: 'vehicle' }
+                ],
+                order: [['arrival_time', 'ASC']]
+            });
+
+            res.json({
+                success: true,
+                data: sessions,
+                count: sessions.length
+            });
+        } catch (error) {
+            logger.error('Error getting parking sessions by date', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener sesiones por fecha'
             });
         }
     }

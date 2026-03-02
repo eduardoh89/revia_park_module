@@ -25,6 +25,12 @@ export class Vehicle extends Model {
     })
     declare created_at: Date;
 
+    @Column({
+        type: DataType.STRING(100),
+        allowNull: true
+    })
+    declare url_foto?: string;
+
     @ForeignKey(() => VehicleType)
     @Column({
         type: DataType.INTEGER,

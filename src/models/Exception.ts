@@ -4,19 +4,20 @@ import { ParkingLot } from './ParkingLot';
 import { ParkingSession } from './ParkingSession';
 import { Payment } from './Payment';
 import { Contract } from './Contract';
+import { UnidentifiedVehicle } from './UnidentifiedVehicle';
 
 export type ExceptionCreatedBy = 'SYSTEM' | 'OPERATOR';
-export type ExceptionStatus = 'OPEN' | 'RESOLVED' | 'ESCALATED';
+export type ExceptionStatus = 'OPEN' | 'RESOLVED' | 'ESCALATED' | 'CANCELLED' | 'IN_PROGRESS';
 
 @Table({
-    tableName: 'exceptions',
+    tableName: 'parking_exceptions',
     timestamps: false
 })
 export class Exception extends Model {
     @PrimaryKey
     @AutoIncrement
     @Column(DataType.INTEGER)
-    declare id_exceptions: number;
+    declare id_parking_exceptions: number;
 
     @Column({
         type: DataType.ENUM('SYSTEM', 'OPERATOR'),
@@ -37,7 +38,7 @@ export class Exception extends Model {
     declare resolved_at?: Date;
 
     @Column({
-        type: DataType.ENUM('OPEN', 'RESOLVED', 'ESCALATED'),
+        type: DataType.ENUM('OPEN', 'RESOLVED', 'ESCALATED','CANCELLED','IN_PROGRESS'),
         allowNull: false,
         defaultValue: 'OPEN'
     })
@@ -122,4 +123,14 @@ export class Exception extends Model {
 
     @BelongsTo(() => Contract)
     declare contract?: Contract;
+
+    @ForeignKey(() => UnidentifiedVehicle)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_unidentified_vehicles?: number;
+
+    @BelongsTo(() => UnidentifiedVehicle)
+    declare unidentifiedVehicle?: UnidentifiedVehicle;
 }

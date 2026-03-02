@@ -2,6 +2,7 @@ import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, 
 import { Vehicle } from './Vehicle';
 import { ParkingLot } from './ParkingLot';
 import { Contract } from './Contract';
+import { UnidentifiedVehicle } from './UnidentifiedVehicle';
 
 export type SessionStatus = 'PARKED' | 'EXITED_PAID' | 'EXITED_CONTRACT' | 'EXITED_EXCEPTION' | 'TRAILER_WAITING';
 
@@ -66,12 +67,12 @@ export class ParkingSession extends Model {
     @ForeignKey(() => Vehicle)
     @Column({
         type: DataType.INTEGER,
-        allowNull: false
+        allowNull: true
     })
-    declare id_vehicles: number;
+    declare id_vehicles?: number;
 
     @BelongsTo(() => Vehicle, { foreignKey: 'id_vehicles', as: 'vehicle' })
-    declare vehicle: Vehicle;
+    declare vehicle?: Vehicle;
 
     @ForeignKey(() => Vehicle)
     @Column({
@@ -92,4 +93,14 @@ export class ParkingSession extends Model {
 
     @BelongsTo(() => Contract)
     declare contract?: Contract;
+
+    @ForeignKey(() => UnidentifiedVehicle)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_unidentified_vehicles?: number;
+
+    @BelongsTo(() => UnidentifiedVehicle)
+    declare unidentifiedVehicle?: UnidentifiedVehicle;
 }

@@ -19,6 +19,8 @@ import { VehicleRateConfig } from '../models/VehicleRateConfig';
 import { ContractRate } from '../models/ContractRate';
 import { ContractRateConfig } from '../models/ContractRateConfig';
 import { QRConfig } from '../models/QRConfig';
+import { UnidentifiedVehicle } from '../models/UnidentifiedVehicle';
+import { ExceptionTypeTarget } from '../models/ExceptionTypeTarget';
 import { ExceptionType } from '../models/ExceptionType';
 import { Exception } from '../models/Exception';
 
@@ -58,6 +60,8 @@ export const sequelize = new Sequelize({
         ContractRate,
         ContractRateConfig,
         QRConfig,
+        UnidentifiedVehicle,
+        ExceptionTypeTarget,
         ExceptionType,
         Exception
     ],

@@ -22,6 +22,12 @@ router.post('/', VehicleController.create);
 router.post('/entry', VehicleController.registerEntry);
 
 /**
+ * POST /api/v1/vehicles/exit
+ * Registrar salida de vehículo
+ */
+router.post('/exit', VehicleController.registerExit);
+
+/**
  * GET /api/v1/vehicles/:id
  * Obtener un vehículo por ID
  */

@@ -1,8 +1,13 @@
 import { Request, Response } from 'express';
 import { ExceptionType } from '../../models/ExceptionType';
+import { ExceptionTypeTarget } from '../../models/ExceptionTypeTarget';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ExceptionTypeController');
+
+const defaultIncludes = [
+    { model: ExceptionTypeTarget, required: false }
+];
 
 export class ExceptionTypeController {
 
@@ -15,7 +20,7 @@ export class ExceptionTypeController {
             const where: any = {};
             if (is_active !== undefined) where.is_active = parseInt(is_active as string);
 
-            const types = await ExceptionType.findAll({ where, order: [['name', 'ASC']] });
+            const types = await ExceptionType.findAll({ where, include: defaultIncludes, order: [['name', 'ASC']] });
 
             res.json({ success: true, data: types });
         } catch (error) {
@@ -29,7 +34,7 @@ export class ExceptionTypeController {
      */
     static async getById(req: Request, res: Response) {
         try {
-            const type = await ExceptionType.findByPk(parseInt(req.params.id));
+            const type = await ExceptionType.findByPk(parseInt(req.params.id), { include: defaultIncludes });
             if (!type) {
                 return res.status(404).json({ success: false, error: 'Tipo de excepción no encontrado' });
             }
@@ -47,26 +52,22 @@ export class ExceptionTypeController {
         try {
             const { code, name, requires_supervisor, requires_evidence, is_active, not_delete } = req.body;
 
-            if (!code || !name) {
-                return res.status(400).json({ success: false, error: 'code y name son obligatorios' });
+            if (!name) {
+                return res.status(400).json({ success: false, error: 'name son obligatorios' });
             }
 
-            const existing = await ExceptionType.findOne({ where: { code } });
-            if (existing) {
-                return res.status(409).json({ success: false, error: `Ya existe un tipo con el código "${code}"` });
-            }
 
-            const type = await ExceptionType.create({
-                code,
+            const created = await ExceptionType.create({
+                code : 'CREATOR_USER',
                 name,
                 requires_supervisor: requires_supervisor ?? 0,
                 requires_evidence: requires_evidence ?? 0,
                 is_active: is_active ?? 1,
-                not_delete: not_delete ?? 0
+                not_delete: not_delete ?? 0,
+                id_exception_type_targets : 99
             });
 
-            logger.info('Exception type created', { id: type.id_exception_types });
-            res.status(201).json({ success: true, data: type });
+            res.status(201).json({ success: true, data: created });
         } catch (error) {
             logger.error('Error creating exception type', { error });
             res.status(500).json({ success: false, error: 'Error al crear tipo de excepción' });
@@ -100,7 +101,8 @@ export class ExceptionTypeController {
                 ...(is_active !== undefined && { is_active })
             });
 
-            res.json({ success: true, data: type });
+            const updated = await ExceptionType.findByPk(type.id_exception_types, { include: defaultIncludes });
+            res.json({ success: true, data: updated });
         } catch (error) {
             logger.error('Error updating exception type', { error });
             res.status(500).json({ success: false, error: 'Error al actualizar tipo de excepción' });

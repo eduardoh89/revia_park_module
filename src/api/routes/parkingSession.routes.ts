@@ -22,6 +22,12 @@ router.get('/', ParkingSessionController.getAll);
 router.post('/', ParkingSessionController.create);
 
 /**
+ * POST /api/v1/parking-sessions/by-date
+ * Obtener sesiones por fecha (body: { date: "YYYY-MM-DD" })
+ */
+router.post('/by-date', ParkingSessionController.getByDate);
+
+/**
  * GET /api/v1/parking-sessions/:id
  * Obtener una sesión por ID
  */

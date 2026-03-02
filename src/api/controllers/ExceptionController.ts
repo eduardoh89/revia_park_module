@@ -5,6 +5,7 @@ import { ParkingLot } from '../../models/ParkingLot';
 import { ParkingSession } from '../../models/ParkingSession';
 import { Payment } from '../../models/Payment';
 import { Contract } from '../../models/Contract';
+import { UnidentifiedVehicle } from '../../models/UnidentifiedVehicle';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ExceptionController');
@@ -14,7 +15,8 @@ const defaultIncludes = [
     { model: ParkingLot },
     { model: ParkingSession, required: false },
     { model: Payment, required: false },
-    { model: Contract, required: false }
+    { model: Contract, required: false },
+    { model: UnidentifiedVehicle, required: false }
 ];
 
 export class ExceptionController {
@@ -33,7 +35,7 @@ export class ExceptionController {
             const exceptions = await Exception.findAll({
                 where,
                 include: defaultIncludes,
-                order: [['id_exceptions', 'DESC']]
+                order: [['id_parking_exceptions', 'DESC']]
             });
 
             res.json({ success: true, data: exceptions });
@@ -71,20 +73,22 @@ export class ExceptionController {
             const {
                 created_by,
                 id_exception_types,
-                id_parking_lots,
+                id_parking_lots = 1,
                 id_parking_sessions,
                 id_payments,
                 id_contracts,
+                id_unidentified_vehicles,
                 notes,
                 evidence_url,
                 metadata,
-                id_users_reporter
+                id_users_reporter,
+                status
             } = req.body;
 
-            if (!created_by || !id_exception_types || !id_parking_lots) {
+            if (!created_by || !id_exception_types) {
                 return res.status(400).json({
                     success: false,
-                    error: 'created_by, id_exception_types e id_parking_lots son obligatorios'
+                    error: 'created_by, id_exception_types son obligatorios'
                 });
             }
 
@@ -100,22 +104,23 @@ export class ExceptionController {
 
             const exception = await Exception.create({
                 created_by,
-                status: 'OPEN',
+                status,
                 occurred_at: new Date(),
                 id_exception_types,
                 id_parking_lots,
                 id_parking_sessions: id_parking_sessions || null,
                 id_payments: id_payments || null,
                 id_contracts: id_contracts || null,
+                id_unidentified_vehicles: id_unidentified_vehicles || null,
                 notes: notes || null,
                 evidence_url: evidence_url || null,
                 metadata: metadata || null,
                 id_users_reporter: id_users_reporter || null
             });
 
-            const created = await Exception.findByPk(exception.id_exceptions, { include: defaultIncludes });
+            const created = await Exception.findByPk(exception.id_parking_exceptions, { include: defaultIncludes });
 
-            logger.info('Exception created', { id: exception.id_exceptions });
+            logger.info('Exception created', { id: exception.id_parking_exceptions });
             res.status(201).json({ success: true, data: created });
         } catch (error) {
             logger.error('Error creating exception', { error });
@@ -138,18 +143,22 @@ export class ExceptionController {
                 evidence_url,
                 metadata,
                 id_users_reporter,
-                id_users_authorizer
+                id_users_authorizer,
+                id_unidentified_vehicles,
+                status
             } = req.body;
 
             await exception.update({
+                status,
                 ...(notes !== undefined && { notes }),
                 ...(evidence_url !== undefined && { evidence_url }),
                 ...(metadata !== undefined && { metadata }),
                 ...(id_users_reporter !== undefined && { id_users_reporter }),
-                ...(id_users_authorizer !== undefined && { id_users_authorizer })
+                ...(id_users_authorizer !== undefined && { id_users_authorizer }),
+                ...(id_unidentified_vehicles !== undefined && { id_unidentified_vehicles })
             });
 
-            const updated = await Exception.findByPk(exception.id_exceptions, { include: defaultIncludes });
+            const updated = await Exception.findByPk(exception.id_parking_exceptions, { include: defaultIncludes });
             res.json({ success: true, data: updated });
         } catch (error) {
             logger.error('Error updating exception', { error });
@@ -185,9 +194,9 @@ export class ExceptionController {
                 ...(notes !== undefined && { notes })
             });
 
-            const updated = await Exception.findByPk(exception.id_exceptions, { include: defaultIncludes });
+            const updated = await Exception.findByPk(exception.id_parking_exceptions, { include: defaultIncludes });
 
-            logger.info('Exception resolved', { id: exception.id_exceptions, status });
+            logger.info('Exception resolved', { id: exception.id_parking_exceptions, status });
             res.json({ success: true, data: updated });
         } catch (error) {
             logger.error('Error resolving exception', { error });

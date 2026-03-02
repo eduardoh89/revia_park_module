@@ -21,6 +21,8 @@ router.post('/create', PaymentController.createPaymentLink);
  */
 router.get('/checkout', PaymentController.checkout);
 
+
+
 /**
  * GET /api/v1/payments/success
  * Página de éxito (redirección desde Klap)
@@ -50,6 +52,12 @@ router.get('/', PaymentController.getAll);
  * Crear un pago directamente
  */
 router.post('/', PaymentController.create);
+
+/**
+ * POST /api/v1/payments/by-date
+ * Obtener pagos por fecha (body: { date: "YYYY-MM-DD" })
+ */
+router.post('/by-date', PaymentController.getByDate);
 
 /**
  * GET /api/v1/payments/:id

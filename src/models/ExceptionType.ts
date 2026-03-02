@@ -1,4 +1,5 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, HasMany } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, HasMany, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { ExceptionTypeTarget } from './ExceptionTypeTarget';
 
 @Table({
     tableName: 'exception_types',
@@ -11,7 +12,7 @@ export class ExceptionType extends Model {
     declare id_exception_types: number;
 
     @Column({
-        type: DataType.STRING(20),
+        type: DataType.STRING(30),
         allowNull: false
     })
     declare code: string;
@@ -49,4 +50,14 @@ export class ExceptionType extends Model {
         defaultValue: 0
     })
     declare not_delete: number;
+
+    @ForeignKey(() => ExceptionTypeTarget)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_exception_type_targets?: number;
+
+    @BelongsTo(() => ExceptionTypeTarget)
+    declare exceptionTypeTarget?: ExceptionTypeTarget;
 }

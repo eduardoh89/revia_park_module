@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { Op } from 'sequelize';
 import { Payment } from '../../models/Payment';
 import { PaymentLink } from '../../models/PaymentLink';
 import { PaymentMethod } from '../../models/PaymentMethod';
@@ -95,12 +96,12 @@ export class PaymentController {
                 });
             }
 
-            if (!order_id) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'El order_id es obligatorio'
-                });
-            }
+            // if (!order_id) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         error: 'El order_id es obligatorio'
+            //     });
+            // }
 
             if (!id_parking_sessions) {
                 return res.status(400).json({
@@ -132,9 +133,21 @@ export class PaymentController {
                 });
             }
 
+
+
+            // Actualizar sesión: el usuario pagó → marcar como EXITED_PAID con fecha actual
+            await session.update({
+                status: 'EXITED_PAID',
+                pay_time: new Date(),
+               // exit_time: new Date()
+            });
+
+
+
+
             const payment = await Payment.create({
                 amount,
-                order_id,
+                order_id : `PAY-${Math.floor(Date.now() / 1000)}`,
                 status: status || 'PENDING',
                 mc_code: mc_code || null,
                 created_at: new Date(),
@@ -243,6 +256,83 @@ export class PaymentController {
             res.status(500).json({
                 success: false,
                 error: 'Error al eliminar pago'
+            });
+        }
+    }
+
+ 
+    /**
+     * GET /api/v1/payments/payment-method/:id
+     * Obtener un método de pago por ID
+     */
+    static async getPaymentMethodById(req: Request, res: Response) {
+        try {
+            const parsedId = parseInt(req.params.id);
+            if (isNaN(parsedId)) {
+                return res.status(400).json({ success: false, error: 'El id debe ser un número válido' });
+            }
+
+            const method = await PaymentMethod.findByPk(parsedId);
+            if (!method) {
+                return res.status(404).json({ success: false, error: 'Método de pago no encontrado' });
+            }
+
+            res.json({ success: true, data: method });
+        } catch (error) {
+            logger.error('Error getting payment method by id', { error });
+            res.status(500).json({ success: false, error: 'Error al obtener método de pago' });
+        }
+    }
+
+    /**
+     * POST /api/v1/payments/by-date
+     * Obtener pagos por fecha (created_at), mostrando ParkingSession, Vehicle y PaymentMethod
+     */
+    static async getByDate(req: Request, res: Response) {
+        try {
+            const { date } = req.body;
+
+            if (!date) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El campo date es obligatorio (formato: YYYY-MM-DD)'
+                });
+            }
+
+            const start = new Date(`${date}T00:00:00.000Z`);
+            const end = new Date(`${date}T23:59:59.999Z`);
+
+            if (isNaN(start.getTime())) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Formato de fecha inválido. Use YYYY-MM-DD'
+                });
+            }
+
+            const payments = await Payment.findAll({
+                where: {
+                    created_at: { [Op.between]: [start, end] }
+                },
+                include: [
+                    {
+                        model: ParkingSession,
+                        include: [{ model: Vehicle, as: 'vehicle' }]
+                    },
+                    { model: PaymentMethod }
+                ],
+                order: [['created_at', 'ASC']]
+            });
+
+            res.json({
+                success: true,
+                data: payments,
+                count: payments.length
+            });
+        } catch (error) {
+            logger.error('Error getting payments by date', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener pagos por fecha'
             });
         }
     }

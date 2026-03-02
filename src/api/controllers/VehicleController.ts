@@ -5,6 +5,8 @@ import { ParkingSession, SessionStatus } from '../../models/ParkingSession';
 import { ParkingLot } from '../../models/ParkingLot';
 import { Logger } from '../../shared/utils/logger';
 import { PaymentLinkService } from '../../whatsapp/services/PaymentLinkService';
+import { UnidentifiedVehicle } from '../../models/UnidentifiedVehicle';
+import { Exception } from '../../models/Exception';
 
 const logger = new Logger('VehicleController');
 
@@ -33,6 +35,8 @@ export class VehicleController {
         }
     }
 
+
+
     /**
      * GET /api/v1/vehicles/:id
      * Obtener un vehículo por ID
@@ -53,14 +57,7 @@ export class VehicleController {
 
             res.json({
                 success: true,
-                data: {
-                    id: vehicle.id_vehicles,
-                    licensePlate: vehicle.license_plate,
-                    vehicleType: vehicle.vehicleType
-                        ? { id: vehicle.vehicleType.id_vehicle_types, name: vehicle.vehicleType.name }
-                        : null,
-                    createdAt: vehicle.created_at,
-                },
+                data: vehicle,
             });
         } catch (error) {
             logger.error('Error getting vehicle', { error });
@@ -77,10 +74,8 @@ export class VehicleController {
      */
     static async create(req: Request, res: Response) {
         try {
-            const { license_plate, id_vehicle_types } = req.body;
+            const { license_plate, id_vehicle_types, url_foto } = req.body;
 
-            console.log(req.body);
-            
 
             if (!license_plate) {
                 return res.status(400).json({
@@ -115,6 +110,7 @@ export class VehicleController {
             const vehicle = await Vehicle.create({
                 license_plate: license_plate,
                 id_vehicle_types: id_vehicle_types,
+                url_foto: url_foto || null
             });
 
             res.status(201).json({
@@ -142,7 +138,7 @@ export class VehicleController {
     static async update(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { licensePlate, vehicleTypeId } = req.body;
+            const { licensePlate, vehicleTypeId, url_foto } = req.body;
 
             const vehicle = await Vehicle.findByPk(parseInt(id));
 
@@ -178,6 +174,7 @@ export class VehicleController {
             await vehicle.update({
                 ...(licensePlate && { license_plate: licensePlate }),
                 ...(vehicleTypeId && { id_vehicle_types: vehicleTypeId }),
+                ...(url_foto !== undefined && { url_foto })
             });
 
             const updatedVehicle = await Vehicle.findByPk(vehicle.id_vehicles, {
@@ -263,79 +260,287 @@ export class VehicleController {
      */
     static async registerEntry(req: Request, res: Response) {
         try {
-            const { licensePlate, parkingLotId = 1, vehicleTypeId = 1 } = req.body;
+            const {
+                licensePlate,
+                parkingLotId = 1,
+                arrival_time,
+                vehicleType
+            } = req.body;
 
-            if (!licensePlate) {
+
+            const vehicleTypes: Record<string, number> = {
+                AUTO: 1,
+                BUS: 3,
+                CAMION: 3
+            };
+
+            const vehicleTypeId = vehicleTypes[vehicleType];
+
+            if (!vehicleTypeId) {
                 return res.status(400).json({
                     success: false,
-                    error: 'La patente es requerida',
+                    error: `Tipo de vehículo inválido. Valores permitidos: ${Object.keys(vehicleTypes).join(', ')}`
                 });
             }
 
-            const parkingLot = await ParkingLot.findByPk(parkingLotId);
-            if (!parkingLot) {
-                return res.status(404).json({
-                    success: false,
-                    error: 'Estacionamiento no encontrado',
+
+            let idUnidentifiedVehicles = null;
+            let idVehicles = null;
+
+            if (!licensePlate) {
+                const generatedRef = `TPE-${Date.now().toString(36)}`.toUpperCase();
+                const record = await UnidentifiedVehicle.create({
+                    temp_reference: generatedRef,
+                    capture_image_url: null,
+                    notes: null,
+                    movement_type: 'ENTRY',
+                    created_at: new Date(),
+                    id_vehicles: null
                 });
-            }
 
-            const activeSession = await ParkingSession.findOne({
-                include: [{
-                    model: Vehicle,
-                    where: { license_plate: licensePlate }
-                }],
-                where: { status: 'PARKED' }
-            });
+                idUnidentifiedVehicles = record.id_unidentified_vehicles;
+                logger.info('Unidentified vehicle created', { idUnidentifiedVehicles });
 
-            if (activeSession) {
-                return res.status(409).json({
-                    success: false,
-                    error: 'El vehículo ya tiene una sesión activa',
-                    session: {
-                        id: activeSession.id_parking_sessions,
-                        arrivalTime: activeSession.arrival_time,
+                const idExceptionTypes = 1;//Patente no legible
+
+                await Exception.create({
+                    created_by: 'SYSTEM',
+                    status: 'OPEN',
+                    occurred_at: new Date(),
+                    id_exception_types: idExceptionTypes,
+                    id_parking_lots: 1,
+                    id_unidentified_vehicles: idUnidentifiedVehicles,
+                    notes: 'Vehículo ingresado sin patente legible',
+                });
+
+
+                const session = await ParkingSession.create({
+                    arrival_time: arrival_time ? new Date(arrival_time) : new Date(),
+                    status: 'PARKED',
+                    has_trailer_entry: 0,
+                    has_trailer_exit: 0,
+                    id_parking_lots: parkingLotId,
+                    id_unidentified_vehicles: idUnidentifiedVehicles,
+                    //id_contracts: id_contracts || null,
+                });
+
+                return res.status(201).json({
+                    success: true,
+                    message: 'Entrada registrada correctamente',
+                    data: {
+                        sessionId: session.id_parking_sessions,
+                        licensePlate: licensePlate,
+                        arrivalTime: session.arrival_time,
                     },
                 });
-            }
 
-            let vehicle = await Vehicle.findOne({ where: { license_plate: licensePlate } });
-            if (!vehicle) {
-                vehicle = await Vehicle.create({
-                    license_plate: licensePlate,
-                    id_vehicle_types: vehicleTypeId,
+
+            } else {
+
+                const vehicleOne = await Vehicle.findOne({
+                    where: { license_plate: licensePlate }
                 });
+
+                console.log(vehicleOne);
+                
+
+                if (!vehicleOne) {
+                    const vehicle = await Vehicle.create({
+                        license_plate: licensePlate.trim().toUpperCase(),
+                        id_vehicle_types: vehicleTypeId,
+                    });
+                    idVehicles = vehicle.id_vehicles;
+                    logger.info('Vehicle created', { idVehicles });
+                } else {
+                    idVehicles = vehicleOne.id_vehicles;
+                }
+
+                
+
+                const activeSession = await ParkingSession.findOne({
+                    include: [{
+                            model: Vehicle, as: 'vehicle',
+                    }],
+                    where: { status: 'PARKED', id_vehicles: idVehicles }
+                });
+
+
+
+                if (activeSession) {
+
+                    await Exception.create({
+                        created_by: 'SYSTEM',
+                        status: 'OPEN',
+                        occurred_at: new Date(),
+                        id_parking_sessions: activeSession.id_parking_sessions,
+                        id_parking_lots: 1,
+                        id_exception_types: 9, //VEHICLE_ALREADY_PARKED
+                        notes: 'El vehículo ya tiene una sesión activa',
+                    });
+
+
+                    return res.status(409).json({
+                        success: false,
+                        error: 'El vehículo ya tiene una sesión activa',
+                        session: {
+                            id: activeSession.id_parking_sessions,
+                            arrivalTime: activeSession.arrival_time,
+                        },
+                    });
+                } else {
+
+
+
+                    const session = await ParkingSession.create({
+                        arrival_time: arrival_time ? new Date(arrival_time) : new Date(),
+                        status: 'PARKED',
+                        has_trailer_entry: 0,
+                        has_trailer_exit: 0,
+                        id_parking_lots: parkingLotId,
+                        id_vehicles: idVehicles,
+                        id_trailer: null,
+                        //id_contracts: id_contracts || null,
+                    });
+
+                    res.status(201).json({
+                        success: true,
+                        message: 'Entrada registrada correctamente',
+                        data: {
+                            sessionId: session.id_parking_sessions,
+                            licensePlate: licensePlate,
+                            arrivalTime: session.arrival_time,
+                        },
+                    });
+
+                }
             }
-
-            const session = await ParkingSession.create({
-                id_vehicles: vehicle.id_vehicles,
-                id_parking_lots: parkingLot.id_parking_lots,
-                arrival_time: new Date(),
-                status: 'PARKED',
-            });
-
-            logger.info('Vehicle entry registered', {
-                licensePlate: vehicle.license_plate,
-                sessionId: session.id_parking_sessions,
-                parkingLotId,
-                vehicleTypeId: vehicle.id_vehicle_types,
-            });
-
-            res.status(201).json({
-                success: true,
-                message: 'Entrada registrada correctamente',
-                data: {
-                    sessionId: session.id_parking_sessions,
-                    licensePlate: vehicle.license_plate,
-                    parkingLot: parkingLot.name,
-                    arrivalTime: session.arrival_time,
-                },
-            });
         } catch (error) {
             logger.error('Error registering vehicle entry', { error });
             res.status(500).json({
                 success: false,
                 error: 'Error al registrar entrada',
+            });
+        }
+    }
+
+    /**
+     * POST /api/v1/vehicles/exit
+     * Registrar salida de vehículo del estacionamiento
+     */
+    static async registerExit(req: Request, res: Response) {
+        try {
+            const {
+                licensePlate,
+                temp_reference,
+                status,
+                has_trailer_exit
+            } = req.body;
+
+            // Validar que se envió al menos un identificador
+            if (!licensePlate && !temp_reference) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Debe proporcionar licensePlate o temp_reference'
+                });
+            }
+
+            // Validar status de salida
+            const validExitStatuses: SessionStatus[] = ['EXITED_PAID', 'EXITED_CONTRACT', 'EXITED_EXCEPTION'];
+            const exitStatus: SessionStatus = status || 'EXITED_PAID';
+
+            if (!validExitStatuses.includes(exitStatus)) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Estado inválido. Valores permitidos: ${validExitStatuses.join(', ')}`
+                });
+            }
+
+            let session: ParkingSession | null = null;
+
+            // --- Caso 1: Vehículo NO identificado (temp_reference) ---
+            if (!licensePlate && temp_reference) {
+                const unidentified = await UnidentifiedVehicle.findOne({
+                    where: { temp_reference }
+                });
+
+                if (!unidentified) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Vehículo no identificado no encontrado'
+                    });
+                }
+
+                session = await ParkingSession.findOne({
+                    where: {
+                        id_unidentified_vehicles: unidentified.id_unidentified_vehicles,
+                        status: 'PARKED'
+                    }
+                });
+
+                if (!session) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'No se encontró sesión activa para este vehículo no identificado'
+                    });
+                }
+
+            // --- Caso 2: Vehículo identificado (licensePlate) ---
+            } else {
+                const vehicle = await Vehicle.findOne({
+                    where: { license_plate: licensePlate.trim().toUpperCase() }
+                });
+
+                if (!vehicle) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'Vehículo no encontrado'
+                    });
+                }
+
+                session = await ParkingSession.findOne({
+                    where: {
+                        id_vehicles: vehicle.id_vehicles,
+                        status: 'PARKED'
+                    }
+                });
+
+                if (!session) {
+                    return res.status(404).json({
+                        success: false,
+                        error: 'No se encontró sesión activa para este vehículo'
+                    });
+                }
+            }
+
+            // Actualizar sesión con la salida
+            await session.update({
+                exit_time: new Date(),
+                status: exitStatus,
+                ...(has_trailer_exit !== undefined && { has_trailer_exit })
+            });
+
+            logger.info('Exit registered', {
+                sessionId: session.id_parking_sessions,
+                status: exitStatus
+            });
+
+            return res.status(200).json({
+                success: true,
+                message: 'Salida registrada correctamente',
+                data: {
+                    sessionId: session.id_parking_sessions,
+                    licensePlate: licensePlate || null,
+                    temp_reference: temp_reference || null,
+                    exitTime: session.exit_time,
+                    status: exitStatus
+                }
+            });
+
+        } catch (error) {
+            logger.error('Error registering vehicle exit', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al registrar salida'
             });
         }
     }

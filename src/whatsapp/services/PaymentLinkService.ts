@@ -85,11 +85,11 @@ export class PaymentLinkService {
             where: {
                 id_vehicle_types: vehicle.id_vehicle_types,
                 is_active: 1,
-                start_date: { [Op.lte]: today },
-                [Op.or]: [
-                    { end_date: null },
-                    { end_date: { [Op.gte]: today } }
-                ]
+                // start_date: { [Op.lte]: today },
+                // [Op.or]: [
+                //     { end_date: null },
+                //     { end_date: { [Op.gte]: today } }
+                // ]
             },
             include: [{ model: VehicleRateConfig }],
             order: [['start_date', 'DESC']]
