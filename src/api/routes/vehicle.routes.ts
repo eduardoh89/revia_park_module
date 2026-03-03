@@ -16,14 +16,20 @@ router.get('/', VehicleController.getAll);
 router.post('/', VehicleController.create);
 
 /**
+ * POST /api/v1/vehicles/movement
+ * Endpoint unificado: registrar entrada o salida según movement_type (ENTRY | EXIT)
+ */
+router.post('/movement', VehicleController.registerMovement);
+
+/**
  * POST /api/v1/vehicles/entry
- * Registrar entrada de vehículo
+ * Registrar entrada de vehículo (mantenido por compatibilidad)
  */
 router.post('/entry', VehicleController.registerEntry);
 
 /**
  * POST /api/v1/vehicles/exit
- * Registrar salida de vehículo
+ * Registrar salida de vehículo (mantenido por compatibilidad)
  */
 router.post('/exit', VehicleController.registerExit);
 

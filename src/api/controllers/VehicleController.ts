@@ -255,6 +255,42 @@ export class VehicleController {
     }
 
     /**
+     * POST /api/v1/vehicles/movement
+     * Endpoint unificado para registrar entrada o salida de vehículo.
+     *
+     * Campo requerido en el body:
+     *   movement_type: "ENTRY" | "EXIT"
+     *
+     * Para ENTRY también enviar: licensePlate, vehicleType, parkingLotId?, arrival_time?
+     * Para EXIT  también enviar: licensePlate o temp_reference, status?, has_trailer_exit?
+     */
+    static async registerMovement(req: Request, res: Response) {
+        const { movement_type } = req.body;
+
+        if (!movement_type) {
+            return res.status(400).json({
+                success: false,
+                error: 'El campo movement_type es obligatorio. Valores permitidos: ENTRY, EXIT'
+            });
+        }
+
+        const type = String(movement_type).toUpperCase();
+
+        if (type === 'ENTRY') {
+            return VehicleController.registerEntry(req, res);
+        }
+
+        if (type === 'EXIT') {
+            return VehicleController.registerExit(req, res);
+        }
+
+        return res.status(400).json({
+            success: false,
+            error: `movement_type inválido: "${movement_type}". Valores permitidos: ENTRY, EXIT`
+        });
+    }
+
+    /**
      * POST /api/v1/vehicles/entry
      * Registrar entrada de vehículo al estacionamiento
      */
@@ -341,7 +377,7 @@ export class VehicleController {
                     where: { license_plate: licensePlate }
                 });
 
-                console.log(vehicleOne);
+  
                 
 
                 if (!vehicleOne) {

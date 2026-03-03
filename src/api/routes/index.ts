@@ -21,6 +21,7 @@ import exceptionTypeTargetRoutes from './exceptionTypeTarget.routes';
 import exceptionTypeRoutes from './exceptionType.routes';
 import exceptionRoutes from './exception.routes';
 import contractRoutes from './contract.routes';
+import dashboardRoutes from './dashboard.routes';
 import { QRConfigController } from '../controllers/QRConfigController';
 
 const router = Router();
@@ -60,5 +61,6 @@ router.use('/api/v1/exception-type-targets', exceptionTypeTargetRoutes);
 router.use('/api/v1/exception-types', exceptionTypeRoutes);
 router.use('/api/v1/exceptions', exceptionRoutes);
 router.use('/api/v1/contracts', contractRoutes);
+router.use('/api/v1/dashboard', dashboardRoutes);
 
 export default router;
