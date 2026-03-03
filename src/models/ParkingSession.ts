@@ -4,7 +4,7 @@ import { ParkingLot } from './ParkingLot';
 import { Contract } from './Contract';
 import { UnidentifiedVehicle } from './UnidentifiedVehicle';
 
-export type SessionStatus = 'PARKED' | 'EXITED_PAID' | 'EXITED_CONTRACT' | 'EXITED_EXCEPTION' | 'TRAILER_WAITING';
+export type SessionStatus = 'PARKED' | 'EXITED_PAID' | 'EXITED_CONTRACT' | 'EXITED_EXCEPTION' | 'TRAILER_WAITING' | 'PAID';
 
 @Table({
     tableName: 'parking_sessions',
@@ -35,7 +35,7 @@ export class ParkingSession extends Model {
     declare pay_time?: Date;
 
     @Column({
-        type: DataType.ENUM('PARKED', 'EXITED_PAID', 'EXITED_CONTRACT', 'EXITED_EXCEPTION', 'TRAILER_WAITING'),
+        type: DataType.ENUM('PARKED', 'EXITED_PAID', 'EXITED_CONTRACT', 'EXITED_EXCEPTION', 'TRAILER_WAITING','PAID'),
         allowNull: true
     })
     declare status?: SessionStatus;

@@ -54,7 +54,7 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
 
             // Verificar que la sesión siga en estado PARKED
             if (session.status !== 'PARKED') {
-                const message = session.status === 'EXITED_PAID'
+                const message = session.status === 'PAID'
                     ? '✅ Tu sesión ya fue pagada. No es necesario generar un nuevo link.'
                     : '❌ No se puede generar un nuevo link. La sesión no está activa.';
 

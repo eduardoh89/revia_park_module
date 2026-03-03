@@ -137,7 +137,7 @@ export class PaymentController {
 
             // Actualizar sesión: el usuario pagó → marcar como EXITED_PAID con fecha actual
             await session.update({
-                status: 'EXITED_PAID',
+                status: 'PAID',
                 pay_time: new Date(),
                // exit_time: new Date()
             });
@@ -148,7 +148,7 @@ export class PaymentController {
             const payment = await Payment.create({
                 amount,
                 order_id : `PAY-${Math.floor(Date.now() / 1000)}`,
-                status: status || 'PENDING',
+                status: status || 'COMPLETED',
                 mc_code: mc_code || null,
                 created_at: new Date(),
                 id_parking_sessions,

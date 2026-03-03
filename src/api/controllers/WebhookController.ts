@@ -94,7 +94,7 @@ export class WebhookController {
 
         if (session) {
           await session.update({
-            status: 'EXITED_PAID',
+            status: 'PAID',
             //exit_time: new Date(),
             pay_time: new Date()
           });

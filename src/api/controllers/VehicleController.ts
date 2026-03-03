@@ -7,6 +7,7 @@ import { Logger } from '../../shared/utils/logger';
 import { PaymentLinkService } from '../../whatsapp/services/PaymentLinkService';
 import { UnidentifiedVehicle } from '../../models/UnidentifiedVehicle';
 import { Exception } from '../../models/Exception';
+import { Op } from 'sequelize';
 
 const logger = new Logger('VehicleController');
 
@@ -377,8 +378,8 @@ export class VehicleController {
                     where: { license_plate: licensePlate }
                 });
 
-  
-                
+
+
 
                 if (!vehicleOne) {
                     const vehicle = await Vehicle.create({
@@ -391,11 +392,11 @@ export class VehicleController {
                     idVehicles = vehicleOne.id_vehicles;
                 }
 
-                
+
 
                 const activeSession = await ParkingSession.findOne({
                     include: [{
-                            model: Vehicle, as: 'vehicle',
+                        model: Vehicle, as: 'vehicle',
                     }],
                     where: { status: 'PARKED', id_vehicles: idVehicles }
                 });
@@ -472,6 +473,9 @@ export class VehicleController {
                 has_trailer_exit
             } = req.body;
 
+            console.log(req.body);
+            
+
             // Validar que se envió al menos un identificador
             if (!licensePlate && !temp_reference) {
                 return res.status(400).json({
@@ -494,7 +498,7 @@ export class VehicleController {
             let session: ParkingSession | null = null;
 
             // --- Caso 1: Vehículo NO identificado (temp_reference) ---
-            if (!licensePlate && temp_reference) {
+            if (!licensePlate) {
                 const unidentified = await UnidentifiedVehicle.findOne({
                     where: { temp_reference }
                 });
@@ -520,7 +524,7 @@ export class VehicleController {
                     });
                 }
 
-            // --- Caso 2: Vehículo identificado (licensePlate) ---
+                // --- Caso 2: Vehículo identificado (licensePlate) ---
             } else {
                 const vehicle = await Vehicle.findOne({
                     where: { license_plate: licensePlate.trim().toUpperCase() }
@@ -536,7 +540,9 @@ export class VehicleController {
                 session = await ParkingSession.findOne({
                     where: {
                         id_vehicles: vehicle.id_vehicles,
-                        status: 'PARKED'
+                        status: {
+                            [Op.in]: ['PARKED', 'PAID']
+                        }
                     }
                 });
 
