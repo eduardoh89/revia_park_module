@@ -311,13 +311,17 @@ export class VehicleController {
                 CAMION: 3
             };
 
-            const vehicleTypeId = vehicleTypes[vehicleType];
-
-            if (!vehicleTypeId) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Tipo de vehículo inválido. Valores permitidos: ${Object.keys(vehicleTypes).join(', ')}`
-                });
+            let vehicleTypeId: number;
+            if (!vehicleType && licensePlate) {
+                vehicleTypeId = 99; // SIN TIPO
+            } else {
+                vehicleTypeId = vehicleTypes[String(vehicleType || '').toUpperCase()];
+                if (!vehicleTypeId && licensePlate) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Tipo de vehículo inválido. Valores permitidos: ${Object.keys(vehicleTypes).join(', ')}`
+                    });
+                }
             }
 
 
@@ -466,115 +470,95 @@ export class VehicleController {
      */
     static async registerExit(req: Request, res: Response) {
         try {
-            const {
-                licensePlate,
-                temp_reference,
-                status,
-                has_trailer_exit
-            } = req.body;
+            const { licensePlate } = req.body;
 
-            console.log(req.body);
-            
+            const plate = licensePlate ? licensePlate.trim().toUpperCase() : null;
+            const vehicle = plate
+                ? await Vehicle.findOne({ where: { license_plate: plate } })
+                : null;
 
-            // Validar que se envió al menos un identificador
-            if (!licensePlate && !temp_reference) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Debe proporcionar licensePlate o temp_reference'
-                });
-            }
+            // --- Sin patente o vehículo no encontrado → registrar como no identificado ---
+            if (!vehicle) {
+                const generatedRef = `TPE-${Date.now().toString(36)}`.toUpperCase();
+                const now = new Date();
 
-            // Validar status de salida
-            const validExitStatuses: SessionStatus[] = ['EXITED_PAID', 'EXITED_CONTRACT', 'EXITED_EXCEPTION'];
-            const exitStatus: SessionStatus = status || 'EXITED_PAID';
-
-            if (!validExitStatuses.includes(exitStatus)) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Estado inválido. Valores permitidos: ${validExitStatuses.join(', ')}`
-                });
-            }
-
-            let session: ParkingSession | null = null;
-
-            // --- Caso 1: Vehículo NO identificado (temp_reference) ---
-            if (!licensePlate) {
-                const unidentified = await UnidentifiedVehicle.findOne({
-                    where: { temp_reference }
+                const unidentified = await UnidentifiedVehicle.create({
+                    temp_reference: generatedRef,
+                    notes: plate
+                        ? `Salida registrada sin entrada previa. Patente: ${plate}`
+                        : 'Salida registrada sin patente legible',
+                    movement_type: 'EXIT',
+                    created_at: now,
+                    id_vehicles: null
                 });
 
-                if (!unidentified) {
-                    return res.status(404).json({
-                        success: false,
-                        error: 'Vehículo no identificado no encontrado'
-                    });
-                }
+                await Exception.create({
+                    created_by: 'SYSTEM',
+                    status: 'OPEN',
+                    occurred_at: now,
+                    id_exception_types: 1,
+                    id_parking_lots: 1,
+                    id_unidentified_vehicles: unidentified.id_unidentified_vehicles,
+                    notes: plate
+                        ? `Vehículo no encontrado al registrar salida. Patente: ${plate}`
+                        : 'Salida registrada sin patente legible'
+                });
 
-                session = await ParkingSession.findOne({
-                    where: {
-                        id_unidentified_vehicles: unidentified.id_unidentified_vehicles,
-                        status: 'PARKED'
+                const session = await ParkingSession.create({
+                    arrival_time: now,
+                    exit_time: now,
+                    status: 'EXITED_EXCEPTION',
+                    has_trailer_entry: 0,
+                    has_trailer_exit: 0,
+                    id_parking_lots: 1,
+                    id_unidentified_vehicles: unidentified.id_unidentified_vehicles
+                });
+
+                logger.info('Exit registered as unidentified', { plate, sessionId: session.id_parking_sessions });
+
+                return res.status(201).json({
+                    success: true,
+                    message: 'Salida registrada como vehículo no identificado',
+                    data: {
+                        sessionId: session.id_parking_sessions,
+                        licensePlate: plate,
+                        temp_reference: generatedRef,
+                        exitTime: session.exit_time,
+                        status: 'EXITED_EXCEPTION'
                     }
                 });
-
-                if (!session) {
-                    return res.status(404).json({
-                        success: false,
-                        error: 'No se encontró sesión activa para este vehículo no identificado'
-                    });
-                }
-
-                // --- Caso 2: Vehículo identificado (licensePlate) ---
-            } else {
-                const vehicle = await Vehicle.findOne({
-                    where: { license_plate: licensePlate.trim().toUpperCase() }
-                });
-
-                if (!vehicle) {
-                    return res.status(404).json({
-                        success: false,
-                        error: 'Vehículo no encontrado'
-                    });
-                }
-
-                session = await ParkingSession.findOne({
-                    where: {
-                        id_vehicles: vehicle.id_vehicles,
-                        status: {
-                            [Op.in]: ['PARKED', 'PAID']
-                        }
-                    }
-                });
-
-                if (!session) {
-                    return res.status(404).json({
-                        success: false,
-                        error: 'No se encontró sesión activa para este vehículo'
-                    });
-                }
             }
 
-            // Actualizar sesión con la salida
+            // --- Vehículo encontrado → buscar sesión activa ---
+            const session = await ParkingSession.findOne({
+                where: {
+                    id_vehicles: vehicle.id_vehicles,
+                    status: { [Op.in]: ['PARKED', 'PAID'] }
+                }
+            });
+
+            if (!session) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'No se encontró sesión activa para este vehículo'
+                });
+            }
+
             await session.update({
                 exit_time: new Date(),
-                status: exitStatus,
-                ...(has_trailer_exit !== undefined && { has_trailer_exit })
+                status: 'EXITED_PAID'
             });
 
-            logger.info('Exit registered', {
-                sessionId: session.id_parking_sessions,
-                status: exitStatus
-            });
+            logger.info('Exit registered', { sessionId: session.id_parking_sessions });
 
             return res.status(200).json({
                 success: true,
                 message: 'Salida registrada correctamente',
                 data: {
                     sessionId: session.id_parking_sessions,
-                    licensePlate: licensePlate || null,
-                    temp_reference: temp_reference || null,
+                    licensePlate: plate,
                     exitTime: session.exit_time,
-                    status: exitStatus
+                    status: 'EXITED_PAID'
                 }
             });
 

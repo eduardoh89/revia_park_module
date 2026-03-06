@@ -1,6 +1,7 @@
 import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import { ParkingSession } from './ParkingSession';
 import { PaymentMethod } from './PaymentMethod';
+import { Contract } from './Contract';
 
 export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'REJECTED' | 'VOIDED';
 
@@ -61,12 +62,22 @@ export class Payment extends Model {
     @ForeignKey(() => ParkingSession)
     @Column({
         type: DataType.INTEGER,
-        allowNull: false
+        allowNull: true
     })
-    declare id_parking_sessions: number;
+    declare id_parking_sessions?: number;
 
     @BelongsTo(() => ParkingSession)
     declare parkingSession: ParkingSession;
+
+    @ForeignKey(() => Contract)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_contracts?: number;
+
+    @BelongsTo(() => Contract)
+    declare contract: Contract;
 
     @ForeignKey(() => PaymentMethod)
     @Column({
