@@ -23,6 +23,10 @@ import { UnidentifiedVehicle } from '../models/UnidentifiedVehicle';
 import { ExceptionTypeTarget } from '../models/ExceptionTypeTarget';
 import { ExceptionType } from '../models/ExceptionType';
 import { Exception } from '../models/Exception';
+import { Role } from '../models/Role';
+import { User } from '../models/User';
+import { RoleModulePermission } from '../models/RoleModulePermission';
+import { ContractVehicle } from '../models/ContractVehicle';
 
 export const sequelize = new Sequelize({
     dialect: 'mysql',
@@ -63,7 +67,11 @@ export const sequelize = new Sequelize({
         UnidentifiedVehicle,
         ExceptionTypeTarget,
         ExceptionType,
-        Exception
+        Exception,
+        Role,
+        User,
+        RoleModulePermission,
+        ContractVehicle
     ],
     pool: {
         max: 5,

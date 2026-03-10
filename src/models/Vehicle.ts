@@ -1,5 +1,6 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo, CreatedAt } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo, HasMany, CreatedAt } from 'sequelize-typescript';
 import { VehicleType } from './VehicleType';
+import { ContractVehicle } from './ContractVehicle';
 
 @Table({
     tableName: 'vehicles',
@@ -40,4 +41,7 @@ export class Vehicle extends Model {
 
     @BelongsTo(() => VehicleType)
     declare vehicleType: VehicleType;
+
+    @HasMany(() => ContractVehicle)
+    declare contractVehicles: ContractVehicle[];
 }

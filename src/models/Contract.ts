@@ -1,7 +1,10 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo, HasMany } from 'sequelize-typescript';
 import { Company } from './Company';
 import { ContractType } from './ContractType';
+import { ContractRate } from './ContractRate';
 import { ParkingLot } from './ParkingLot';
+import { User } from './User';
+import { ContractVehicle } from './ContractVehicle';
 
 @Table({
     tableName: 'contracts',
@@ -78,4 +81,27 @@ export class Contract extends Model {
 
     @BelongsTo(() => ParkingLot)
     declare parkingLot: ParkingLot;
+
+    @ForeignKey(() => User)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_users?: number;
+
+    @BelongsTo(() => User)
+    declare user?: User;
+
+    @ForeignKey(() => ContractRate)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_contract_rates?: number;
+
+    @BelongsTo(() => ContractRate)
+    declare contractRate?: ContractRate;
+
+    @HasMany(() => ContractVehicle)
+    declare contractVehicles: ContractVehicle[];
 }

@@ -1,8 +1,14 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
+import { sequelize } from '../../config/database';
 import { Contract } from '../../models/Contract';
 import { Company } from '../../models/Company';
 import { ContractType } from '../../models/ContractType';
 import { ParkingLot } from '../../models/ParkingLot';
+import { User } from '../../models/User';
+import { ContractRate } from '../../models/ContractRate';
+import { Vehicle } from '../../models/Vehicle';
+import { ContractVehicle } from '../../models/ContractVehicle';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ContractController');
@@ -10,7 +16,9 @@ const logger = new Logger('ContractController');
 const defaultIncludes = [
     { model: Company },
     { model: ContractType },
-    { model: ParkingLot }
+    { model: ContractRate },
+    { model: ParkingLot },
+    { model: User }
 ];
 
 export class ContractController {
@@ -61,7 +69,68 @@ export class ContractController {
     }
 
     /**
+     * GET /api/v1/contracts/by-license-plate/:plate
+     * Busca contratos vigentes asociados a una patente.
+     * Lógica:
+     *   1. Busca el vehículo por patente (normalizada a mayúsculas).
+     *   2. Obtiene los IDs de contratos activos asignados via contract_vehicles.
+     *   3. Filtra contratos donde hoy está entre start_date y end_date.
+     *   4. Retorna los contratos vigentes o null si no hay.
+     */
+    static async getByLicensePlate(req: Request, res: Response) {
+        try {
+            const plate = req.params.plate.trim().toUpperCase();
+
+            // 1. Buscar vehículo por patente
+            const vehicle = await Vehicle.findOne({
+                where: { license_plate: plate }
+            });
+
+            if (!vehicle) {
+                return res.json({ success: true, data: null });
+            }
+
+            // 2. Obtener IDs de contratos asignados a ese vehículo via contract_vehicles
+            const contractVehicles = await ContractVehicle.findAll({
+                where: {
+                    id_vehicles: vehicle.id_vehicles,
+                    is_active: 1
+                },
+                attributes: ['id_contracts']
+            });
+
+            const contractIds = contractVehicles.map(cv => cv.id_contracts);
+
+            if (contractIds.length === 0) {
+                return res.json({ success: true, data: null });
+            }
+
+            // 3. Filtrar contratos vigentes (hoy entre start_date y end_date)
+            const today = new Date().toISOString().split('T')[0];
+
+            const contracts = await Contract.findAll({
+                where: {
+                    id_contracts: { [Op.in]: contractIds },
+                    start_date: { [Op.lte]: today },
+                    end_date: { [Op.gte]: today }
+                },
+                include: defaultIncludes
+            });
+
+            res.json({
+                success: true,
+                data: contracts.length > 0 ? contracts : null
+            });
+        } catch (error) {
+            logger.error('Error searching contracts by license plate', { error });
+            res.status(500).json({ success: false, error: 'Error al buscar contratos por patente' });
+        }
+    }
+
+    /**
      * POST /api/v1/contracts
+     * Body esperado:
+     *   { ...campos del contrato, vehicles: [{ id_vehicles, is_active? }, ...] }
      */
     static async create(req: Request, res: Response) {
         try {
@@ -74,8 +143,14 @@ export class ContractController {
                 max_vehicle,
                 id_companies,
                 id_contract_types,
-                id_parking_lots
+                id_parking_lots,
+                id_users,
+                id_contract_rates,
+                vehicles // array de { id_vehicles, is_active? }
             } = req.body;
+
+            console.log(req.body);
+            
 
             if (!start_date || !end_date || !max_vehicle || !id_companies || !id_contract_types || !id_parking_lots) {
                 return res.status(400).json({
@@ -99,21 +174,44 @@ export class ContractController {
                 return res.status(404).json({ success: false, error: 'Estacionamiento no encontrado' });
             }
 
-            const contract = await Contract.create({
-                start_date,
-                end_date,
-                status: status ?? 1,
-                notes: notes || null,
-                final_price: final_price || null,
-                max_vehicle,
-                id_companies,
-                id_contract_types,
-                id_parking_lots
+            const created = await sequelize.transaction(async (t) => {
+                // 1. Crear el contrato
+                const contract = await Contract.create({
+                    start_date,
+                    end_date,
+                    status: status ?? 1,
+                    notes: notes || null,
+                    final_price: final_price || null,
+                    max_vehicle,
+                    id_companies,
+                    id_contract_types,
+                    id_parking_lots,
+                    id_users: id_users || null,
+                    id_contract_rates: id_contract_rates || null
+                }, { transaction: t });
+
+                // 2. Crear contract_vehicles si se enviaron vehículos
+                if (Array.isArray(vehicles) && vehicles.length > 0) {
+                    const contractVehiclesData = vehicles.map((v: { id_vehicles: number; is_active?: number }) => ({
+                        id_contracts: contract.id_contracts,
+                        id_vehicles: v.id_vehicles,
+                        is_active: v.is_active ?? 1
+                    }));
+
+                    await ContractVehicle.bulkCreate(contractVehiclesData, { transaction: t });
+                }
+
+                // 3. Retornar el contrato con sus relaciones
+                return Contract.findByPk(contract.id_contracts, {
+                    include: [
+                        ...defaultIncludes,
+                        { model: ContractVehicle, include: [{ model: Vehicle }] }
+                    ],
+                    transaction: t
+                });
             });
 
-            const created = await Contract.findByPk(contract.id_contracts, { include: defaultIncludes });
-
-            logger.info('Contract created', { id: contract.id_contracts });
+            logger.info('Contract created', { id: created?.id_contracts });
             res.status(201).json({ success: true, data: created });
         } catch (error) {
             logger.error('Error creating contract', { error });
@@ -140,7 +238,9 @@ export class ContractController {
                 max_vehicle,
                 id_companies,
                 id_contract_types,
-                id_parking_lots
+                id_parking_lots,
+                id_users,
+                id_contract_rates
             } = req.body;
 
             await contract.update({
@@ -152,7 +252,9 @@ export class ContractController {
                 ...(max_vehicle !== undefined && { max_vehicle }),
                 ...(id_companies !== undefined && { id_companies }),
                 ...(id_contract_types !== undefined && { id_contract_types }),
-                ...(id_parking_lots !== undefined && { id_parking_lots })
+                ...(id_parking_lots !== undefined && { id_parking_lots }),
+                ...(id_users !== undefined && { id_users }),
+                ...(id_contract_rates !== undefined && { id_contract_rates })
             });
 
             const updated = await Contract.findByPk(contract.id_contracts, { include: defaultIncludes });

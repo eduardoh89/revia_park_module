@@ -18,6 +18,13 @@ export class ContractRate extends Model {
     })
     declare month_amount: number;
 
+
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare week_amount: number;
+
     @Column({
         type: DataType.INTEGER,
         allowNull: true

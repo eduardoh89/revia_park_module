@@ -22,6 +22,10 @@ import exceptionTypeRoutes from './exceptionType.routes';
 import exceptionRoutes from './exception.routes';
 import contractRoutes from './contract.routes';
 import dashboardRoutes from './dashboard.routes';
+import roleRoutes from './role.routes';
+import userRoutes from './user.routes';
+import roleModulePermissionRoutes from './roleModulePermission.routes';
+import contractVehicleRoutes from './contractVehicle.routes';
 import { QRConfigController } from '../controllers/QRConfigController';
 
 const router = Router();
@@ -62,5 +66,9 @@ router.use('/api/v1/exception-types', exceptionTypeRoutes);
 router.use('/api/v1/exceptions', exceptionRoutes);
 router.use('/api/v1/contracts', contractRoutes);
 router.use('/api/v1/dashboard', dashboardRoutes);
+router.use('/api/v1/roles', roleRoutes);
+router.use('/api/v1/users', userRoutes);
+router.use('/api/v1/role-module-permissions', roleModulePermissionRoutes);
+router.use('/api/v1/contract-vehicles', contractVehicleRoutes);
 
 export default router;

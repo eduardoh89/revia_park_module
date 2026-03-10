@@ -3,7 +3,14 @@ import { WhatsAppContact } from '../../models/WhatsAppContact';
 import { WhatsAppConversation } from '../../models/WhatsAppConversation';
 import { Vehicle } from '../../models/Vehicle';
 import { ParkingSession } from '../../models/ParkingSession';
+import { Contract } from '../../models/Contract';
+import { Company } from '../../models/Company';
+import { ContractType } from '../../models/ContractType';
+import { ContractRate } from '../../models/ContractRate';
+import { ContractRateConfig } from '../../models/ContractRateConfig';
 import { PaymentLinkService } from '../services/PaymentLinkService';
+
+
 
 const delay = (ms: number): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, ms));
@@ -174,7 +181,70 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
                     return ctxFn.endFlow();
                 }
 
-                // 6. Calcular tiempo transcurrido
+                // 6. Verificar si tiene contrato vigente
+                if (session.id_contracts) {
+                    const contract = await Contract.findByPk(session.id_contracts, {
+                        include: [
+                            { model: Company },
+                            { model: ContractType },
+                            { model: ContractRate , include: [{ model :ContractRateConfig }] }
+                        ]
+                    });
+
+                    //ContractRateConfig
+
+                    const today = new Date().toISOString().split('T')[0];
+
+                    if (contract &&
+                        contract.status === 1 &&
+                        contract.start_date <= today &&
+                        contract.end_date >= today) {
+
+                        // Contrato vigente — puede salir sin pagar
+                        const arrivalTime = new Date(session.arrival_time!);
+                        const horaIngreso = arrivalTime.toLocaleTimeString('es-CL', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        });
+
+                        const contractMessage =
+                            '✅ *Vehículo con contrato vigente*\n\n' +
+                            `📋 *Patente:* ${patente}\n` +
+                            `🕐 *Hora de ingreso:* ${horaIngreso}\n` +
+                            `📄 *Tipo de plan:* ${contract.contractRate?.contractRateConfig.name || 'N/A'}\n` +
+                            `📄 *Valor Plan:* ${contract.final_price}\n` +
+                            `📅 *Inicio:* ${contract.start_date}\n` +
+                            `📅 *Vencimiento:* ${contract.end_date}\n\n` +
+                            '🚗 *No necesita pagar. Puede salir sin costo.*\n\n' +
+                            '¡Buen viaje! 👋';
+
+                        await ctxFn.flowDynamic(contractMessage);
+
+                        await WhatsAppConversation.create({
+                            id_whatsapp_contacts: contact.id_whatsapp_contacts,
+                            id_parking_sessions: session.id_parking_sessions,
+                            message_type: 'outgoing',
+                            message_content: contractMessage,
+                            flow_step: 'contract_exit',
+                            metadata: {
+                                licensePlate: patente,
+                                contractId: contract.id_contracts,
+                                contractType: contract.contractType?.name,
+                                company: contract.company?.business_name,
+                                startDate: contract.start_date,
+                                endDate: contract.end_date
+                            }
+                        });
+
+                        return ctxFn.endFlow();
+                    }
+
+                    // Contrato existe pero está vencido/inactivo → limpiar de la sesión y cobrar normal
+                    await session.update({ id_contracts: null });
+                }
+
+                // 7. Calcular tiempo transcurrido (flujo normal sin contrato)
                 const arrivalTime = new Date(session.arrival_time!);
                 const now = new Date();
                 const diffMs = now.getTime() - arrivalTime.getTime();
@@ -185,7 +255,7 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
                     ? `${hours} hora${hours > 1 ? 's' : ''} ${minutes} minuto${minutes !== 1 ? 's' : ''}`
                     : `${minutes} minuto${minutes !== 1 ? 's' : ''}`;
 
-                // 7. Generar link de pago
+                // 8. Generar link de pago
                 let paymentUrl = '';
                 let amount = 0;
 
@@ -215,7 +285,7 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
                     return ctxFn.endFlow();
                 }
 
-                // 8. Enviar información del vehículo
+                // 9. Enviar información del vehículo
                 const horaIngreso = arrivalTime.toLocaleTimeString('es-CL', {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -248,7 +318,7 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
 
                 await delay(1000);
 
-                // 9. Enviar link de pago con botones
+                // 10. Enviar link de pago con botones
                 const paymentLinkMessage =
                     `🔗 *Pagar ahora:*\n${paymentUrl}\n\n` +
                     '⏰ _Este link expira en 5 minutos_\n\n' +
@@ -343,11 +413,25 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
         async (ctx, ctxFn) => {
             // Solo actuar si el step 1 llegó exitosamente al link de pago
             const { paymentLinkSent } = await ctxFn.state.getMyState();
+            const body = (ctx.body || '').trim();
 
             if (!paymentLinkSent) {
                 // El flujo terminó antes (error, vehículo no encontrado, etc.)
-                // No hacer nada, dejar que builderbot cierre el flujo
-                return ctxFn.endFlow();
+                if (ctx.idleCtx) {
+                    return ctxFn.endFlow();
+                }
+
+                // El usuario presionó "❌ Salir" → despedirse
+                if (body.includes('Salir')) {
+                    await ctxFn.flowDynamic(
+                        '👋 Gracias por usar REVIA.\n\n' +
+                        'Si necesitas algo más, escribe *hola* para comenzar nuevamente.'
+                    );
+                    return ctxFn.endFlow();
+                }
+
+                // El usuario presionó "🔄 Reintentar" / "🔄 Otra patente" → reiniciar flujo
+                return ctxFn.gotoFlow(welcomeFlow);
             }
 
             if (ctx.idleCtx) {
@@ -360,7 +444,12 @@ const welcomeFlow = addKeyword(EVENTS.WELCOME)
                 return ctxFn.endFlow();
             }
 
-            // El usuario escribió algo (o tocó un botón) → cerrar con despedida
+            // El usuario presionó "🔄 Nuevo link" → reiniciar flujo para generar otro link
+            if (body.includes('Nuevo link')) {
+                return ctxFn.gotoFlow(welcomeFlow);
+            }
+
+            // El usuario presionó "❌ Salir" o escribió algo → cerrar con despedida
             await ctxFn.flowDynamic(
                 '👋 Gracias por usar REVIA.\n\n' +
                 'Si necesitas algo más, escribe *hola* para comenzar nuevamente.'

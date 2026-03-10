@@ -11,7 +11,9 @@ export class ContractTypeController {
      */
     static async getAll(req: Request, res: Response) {
         try {
-            const contractTypes = await ContractType.findAll();
+            const contractTypes = await ContractType.findAll({
+                where : {is_active : 1}
+            });
 
             res.json({
                 success: true,
@@ -62,7 +64,7 @@ export class ContractTypeController {
     static async create(req: Request, res: Response) {
         try {
             const { code, name, description,max_vehicle } = req.body;
-            console.log(req.body);
+  
             
 
             if (!code) {
@@ -79,7 +81,7 @@ export class ContractTypeController {
                 });
             }
 
-            const contractType = await ContractType.create({ code, name, description, is_active : 1,max_vehicle });
+            const contractType = await ContractType.create({ code, name, description, is_active : 1,max_vehicle : 1 });
 
             res.status(201).json({
                 success: true,

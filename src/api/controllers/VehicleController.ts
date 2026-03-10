@@ -7,7 +7,12 @@ import { Logger } from '../../shared/utils/logger';
 import { PaymentLinkService } from '../../whatsapp/services/PaymentLinkService';
 import { UnidentifiedVehicle } from '../../models/UnidentifiedVehicle';
 import { Exception } from '../../models/Exception';
+import { ContractVehicle } from '../../models/ContractVehicle';
+import { Contract } from '../../models/Contract';
 import { Op } from 'sequelize';
+
+
+
 
 const logger = new Logger('VehicleController');
 
@@ -296,7 +301,7 @@ export class VehicleController {
      * Registrar entrada de vehículo al estacionamiento
      */
     static async registerEntry(req: Request, res: Response) {
-        try {
+     try {
             const {
                 licensePlate,
                 parkingLotId = 1,
@@ -312,6 +317,7 @@ export class VehicleController {
             };
 
             let vehicleTypeId: number;
+            let contractId = null;
             if (!vehicleType && licensePlate) {
                 vehicleTypeId = 99; // SIN TIPO
             } else {
@@ -430,7 +436,40 @@ export class VehicleController {
                     });
                 } else {
 
+                    const contractVehicles = await ContractVehicle.findOne({
+                        where: {
+                            id_vehicles: idVehicles,
+                            is_active: 1
+                        },
+                        attributes: ['id_contracts']
+                    });
+                    
 
+                    contractId = contractVehicles ? contractVehicles!.dataValues.id_contracts : null;
+
+                    console.log(contractVehicles,contractId);
+
+
+
+
+
+                    // 3. Filtrar contratos vigentes (hoy entre start_date y end_date)
+                    const today = new Date().toISOString().split('T')[0];
+                    console.log(today);
+                    
+
+                    const contracts = await Contract.findOne({
+                        where: {
+                            id_contracts: contractId ,
+                            start_date: { [Op.lte]: today },
+                            status: 1, // estado Validado
+                            end_date: { [Op.gte]: today }
+                        },
+                    });
+                 
+                    if (!contracts) { // si el contracto si existe pero no esta habilitado
+                        contractId = null;
+                    }
 
                     const session = await ParkingSession.create({
                         arrival_time: arrival_time ? new Date(arrival_time) : new Date(),
@@ -440,7 +479,7 @@ export class VehicleController {
                         id_parking_lots: parkingLotId,
                         id_vehicles: idVehicles,
                         id_trailer: null,
-                        //id_contracts: id_contracts || null,
+                        id_contracts: contractId,
                     });
 
                     res.status(201).json({
@@ -455,7 +494,7 @@ export class VehicleController {
 
                 }
             }
-        } catch (error) {
+        } catch (error) {            
             logger.error('Error registering vehicle entry', { error });
             res.status(500).json({
                 success: false,

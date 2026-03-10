@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import { Module } from '../../models/Module';
 import { ModuleItem } from '../../models/ModuleItem';
+import { User } from '../../models/User';
+import { RoleModulePermission } from '../../models/RoleModulePermission';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('ModuleController');
@@ -37,6 +40,64 @@ export class ModuleController {
             res.status(500).json({
                 success: false,
                 error: 'Error al obtener módulos',
+            });
+        }
+    }
+
+    /**
+     * GET /api/v1/modules/by-user/:id_users
+     * Retorna los módulos con sus items filtrados según los permisos del rol del usuario (can_view=1).
+     * Excluye módulos que no tienen ningún item visible.
+     */
+    static async getAllByUser(req: Request, res: Response) {
+        try {
+            const userId = parseInt(req.params.id_users);
+
+            // 1. Obtener el rol del usuario
+            const user = await User.findByPk(userId);
+            if (!user) {
+                return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+            }
+
+            // 2. Obtener los module_items donde can_view = 1 para ese rol
+            const permissions = await RoleModulePermission.findAll({
+                where: { id_roles: user.id_roles, can_view: 1 },
+                attributes: ['id_module_items']
+            });
+
+            const allowedItemIds = permissions.map(p => p.id_module_items);
+
+            if (allowedItemIds.length === 0) {
+                return res.json({ success: true, data: [] });
+            }
+
+            // 3. Obtener módulos incluyendo solo los items permitidos
+            const modules = await Module.findAll({
+                include: [{
+                    model: ModuleItem,
+                    where: { id_module_items: { [Op.in]: allowedItemIds } },
+                    required: false
+                }]
+            });
+
+            // 4. Ordenar y excluir módulos sin items visibles
+            const sorted = modules
+                .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                .map((m) => {
+                    const json = m.toJSON() as any;
+                    if (json.moduleItems) {
+                        json.moduleItems.sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+                    }
+                    return json;
+                })
+                .filter((m) => (m.moduleItems ?? []).length > 0);
+
+            res.json({ success: true, data: sorted });
+        } catch (error) {
+            logger.error('Error getting modules by user', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener módulos del usuario',
             });
         }
     }
