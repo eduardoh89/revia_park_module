@@ -57,7 +57,7 @@ export class UnidentifiedVehicleController {
      */
     static async create(req: Request, res: Response) {
         try {
-            const { temp_reference, capture_image_url, notes, movement_type, id_vehicles } = req.body;
+            const { temp_reference, capture_image_url, notes, movement_type, id_vehicles, is_positive } = req.body;
 
             const validMovementTypes = ['ENTRY', 'EXIT'];
             if (movement_type && !validMovementTypes.includes(movement_type)) {
@@ -100,7 +100,10 @@ export class UnidentifiedVehicleController {
                 return res.status(404).json({ success: false, error: 'Vehículo no identificado no encontrado' });
             }
 
-            const { temp_reference, capture_image_url, notes, resolved_at, movement_type, id_vehicles } = req.body;
+
+
+
+            const { temp_reference, capture_image_url, notes, resolved_at, movement_type, id_vehicles, is_positive } = req.body;
 
             if (resolved_at && !id_vehicles) {
                 return res.status(400).json({
@@ -109,20 +112,31 @@ export class UnidentifiedVehicleController {
                 });
             }
 
+
+
             await record.update({
                 ...(temp_reference !== undefined && { temp_reference }),
                 ...(capture_image_url !== undefined && { capture_image_url }),
                 ...(notes !== undefined && { notes }),
-                ...(resolved_at !== undefined && { resolved_at: resolved_at ? new Date(resolved_at) : null }),
                 ...(movement_type !== undefined && { movement_type }),
-                ...(id_vehicles !== undefined && { id_vehicles })
+                ...(id_vehicles !== undefined && { id_vehicles }),
+                ...(is_positive !== undefined && { is_positive }),
+
+                ...((resolved_at !== undefined || is_positive === true) && {
+                    resolved_at: resolved_at
+                        ? new Date(resolved_at)
+                        : is_positive === true
+                            ? new Date()
+                            : null
+                })
             });
 
             //id_unidentified_vehicles
 
 
 
-            if (resolved_at) { // Entonces si se resolvió, se actualiza el vehículo asociado 
+
+            if (resolved_at || is_positive) { // Entonces si se resolvió, se actualiza el vehículo asociado 
 
                 const sessions = await ParkingSession.findOne({
                     where: { id_unidentified_vehicles: record.id_unidentified_vehicles },
@@ -132,7 +146,10 @@ export class UnidentifiedVehicleController {
                 if (sessions) {
                     const idParkingSessions = sessions.id_parking_sessions;
                     await ParkingSession.update(
-                        { id_vehicles: id_vehicles },
+                        {
+                            ...(is_positive != true && { id_vehicles }),
+                            ...(is_positive == true && { status: 'FALSE_POSITIVE' }),
+                        },
                         { where: { id_parking_sessions: idParkingSessions } }
                     );
 

@@ -13,7 +13,7 @@ router.get('/active', ParkingSessionController.getActive);
  * GET /api/v1/parking-sessions
  * Listar todas las sesiones de estacionamiento
  */
-router.get('/', ParkingSessionController.getAll);
+router.post('/filtered-parking', ParkingSessionController.postFilteredParkingSessions);
 
 /**
  * POST /api/v1/parking-sessions

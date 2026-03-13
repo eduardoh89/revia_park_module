@@ -7,9 +7,11 @@ import { ContractType } from '../../models/ContractType';
 import { ParkingLot } from '../../models/ParkingLot';
 import { User } from '../../models/User';
 import { ContractRate } from '../../models/ContractRate';
+import { ContractRateConfig } from '../../models/ContractRateConfig';
 import { Vehicle } from '../../models/Vehicle';
 import { ContractVehicle } from '../../models/ContractVehicle';
 import { Logger } from '../../shared/utils/logger';
+
 
 const logger = new Logger('ContractController');
 
@@ -22,6 +24,49 @@ const defaultIncludes = [
 ];
 
 export class ContractController {
+    static async getContractRateConfig(req: Request, res: Response) {
+        try {
+            const contracts = await Contract.findAll({
+                include: [
+                    { model: Company },
+                    { model: ContractType },
+                    { model: ContractRate, include: [{ model: ContractRateConfig }] },
+                    { model: ParkingLot },
+                    { model: User }
+                ],
+                order: [['start_date', 'DESC']]
+            });
+
+            const arrayIdContracts = contracts.map((c) => c.id_contracts);
+            const contractVehicles = await ContractVehicle.findAll({
+                where: { id_contracts: arrayIdContracts },
+                raw: true,
+                nest: true,
+                include: [
+                    { model: Vehicle }
+                ]
+            });
+
+            const newContracts = contracts.map((c) => {
+                const contractVehicleFound = contractVehicles.find(
+                    (v) => v.id_contracts === c.id_contracts
+                );
+
+                return {
+                    ...c.toJSON(),
+                    contractVehicle: contractVehicleFound
+                };
+            });
+
+            res.json({ success: true, data: newContracts });
+        } catch (error) {
+            logger.error('Error getting contracts', { error });
+            res.status(500).json({ success: false, error: 'Error al obtener contratos' });
+        }
+    }
+
+
+
 
     /**
      * GET /api/v1/contracts
@@ -112,6 +157,7 @@ export class ContractController {
                 where: {
                     id_contracts: { [Op.in]: contractIds },
                     start_date: { [Op.lte]: today },
+                    status: 1,
                     end_date: { [Op.gte]: today }
                 },
                 include: defaultIncludes
@@ -148,9 +194,6 @@ export class ContractController {
                 id_contract_rates,
                 vehicles // array de { id_vehicles, is_active? }
             } = req.body;
-
-            console.log(req.body);
-            
 
             if (!start_date || !end_date || !max_vehicle || !id_companies || !id_contract_types || !id_parking_lots) {
                 return res.status(400).json({

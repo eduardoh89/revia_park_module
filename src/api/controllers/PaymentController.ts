@@ -285,6 +285,59 @@ export class PaymentController {
     }
 
     /**
+     * POST /api/v1/payments/filter
+     * Filtrar pagos por status, type (contract|session) y rango de fechas
+     */
+    static async filterPayments(req: Request, res: Response) {
+        try {
+            const { status, type, date_from, date_to } = req.body;
+
+    
+            
+
+            const where: any = {};
+
+            if (status) where.status = status;
+
+            if (type === 'contract') {
+                where.id_contracts = { [Op.ne]: null };
+            } else if (type === 'session') {
+                where.id_parking_sessions = { [Op.ne]: null };
+            }
+
+            if (date_from || date_to) {
+                const from = date_from ? new Date(`${date_from}T00:00:00.000Z`) : new Date(0);
+                const to = date_to ? new Date(`${date_to}T23:59:59.999Z`) : new Date();
+                where.created_at = { [Op.between]: [from, to] };
+            }
+
+            const payments = await Payment.findAll({
+                where,
+                include: [
+                    {
+                        model: ParkingSession,
+                        include: [{ model: Vehicle, as: 'vehicle' }]
+                    },
+                    { model: PaymentMethod }
+                ],
+                order: [['created_at', 'DESC']]
+            });
+
+            res.json({
+                success: true,
+                data: payments,
+                count: payments.length
+            });
+        } catch (error) {
+            logger.error('Error filtering payments', { error });
+            res.status(500).json({
+                success: false,
+                error: 'No se pudieron filtrar los pagos'
+            });
+        }
+    }
+
+    /**
      * POST /api/v1/payments/by-date
      * Obtener pagos por fecha (created_at), mostrando ParkingSession, Vehicle y PaymentMethod
      */

@@ -56,7 +56,7 @@ export class ModuleController {
             // 1. Obtener el rol del usuario
             const user = await User.findByPk(userId);
             if (!user) {
-                return res.status(404).json({ success: false, error: 'Usuario no encontrado' });
+                return res.status(200).json({ success: false, error: 'Usuario no encontrado',data:[] });
             }
 
             // 2. Obtener los module_items donde can_view = 1 para ese rol

@@ -26,6 +26,7 @@ import roleRoutes from './role.routes';
 import userRoutes from './user.routes';
 import roleModulePermissionRoutes from './roleModulePermission.routes';
 import contractVehicleRoutes from './contractVehicle.routes';
+import qrConfigRoutes from './qrConfig.routes';
 import { QRConfigController } from '../controllers/QRConfigController';
 
 const router = Router();
@@ -70,5 +71,6 @@ router.use('/api/v1/roles', roleRoutes);
 router.use('/api/v1/users', userRoutes);
 router.use('/api/v1/role-module-permissions', roleModulePermissionRoutes);
 router.use('/api/v1/contract-vehicles', contractVehicleRoutes);
+router.use('/api/v1/qr-configs', qrConfigRoutes);
 
 export default router;

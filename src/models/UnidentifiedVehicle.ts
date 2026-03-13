@@ -42,6 +42,13 @@ export class UnidentifiedVehicle extends Model {
     declare resolved_at?: Date;
 
     @Column({
+        type: DataType.TINYINT,
+        allowNull: false,
+        defaultValue: 0
+    })
+    declare is_positive: number;
+
+    @Column({
         type: DataType.ENUM('ENTRY', 'EXIT'),
         allowNull: true
     })

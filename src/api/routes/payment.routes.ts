@@ -54,6 +54,12 @@ router.get('/', PaymentController.getAll);
 router.post('/', PaymentController.create);
 
 /**
+ * POST /api/v1/payments/filter
+ * Filtrar pagos por status, type (contract|session) y rango de fechas
+ */
+router.post('/filter', PaymentController.filterPayments);
+
+/**
  * POST /api/v1/payments/by-date
  * Obtener pagos por fecha (body: { date: "YYYY-MM-DD" })
  */

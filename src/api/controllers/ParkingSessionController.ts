@@ -18,14 +18,19 @@ export class ParkingSessionController {
      * GET /api/v1/parking-sessions
      * Listar todas las sesiones de estacionamiento
      */
-    static async getAll(req: Request, res: Response) {
+    static async postFilteredParkingSessions(req: Request, res: Response) {
         try {
-            const { status, id_parking_lots, id_vehicles } = req.query;
+            const { status, id_parking_lots, id_vehicles,is_positive } = req.body;
+
+
+            
 
             const where: any = {};
             if (status) where.status = status;
             if (id_parking_lots) where.id_parking_lots = parseInt(id_parking_lots as string);
             if (id_vehicles) where.id_vehicles = parseInt(id_vehicles as string);
+            if (is_positive) where.status = { [Op.ne]: 'FALSE_POSITIVE' };
+
 
             const sessions = await ParkingSession.findAll({
                 where,

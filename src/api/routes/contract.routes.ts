@@ -4,6 +4,7 @@ import { ContractController } from '../controllers/ContractController';
 const router = Router();
 
 router.get('/', ContractController.getAll);
+router.get('/by-contract-rate-config', ContractController.getContractRateConfig);
 router.post('/', ContractController.create);
 router.get('/by-license-plate/:plate', ContractController.getByLicensePlate);
 router.get('/:id', ContractController.getById);

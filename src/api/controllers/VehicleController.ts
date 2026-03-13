@@ -144,8 +144,8 @@ export class VehicleController {
     static async update(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { licensePlate, vehicleTypeId, url_foto } = req.body;
-
+            const { licensePlate, id_vehicle_types, url_foto } = req.body;
+            
             const vehicle = await Vehicle.findByPk(parseInt(id));
 
             if (!vehicle) {
@@ -167,8 +167,8 @@ export class VehicleController {
                 }
             }
 
-            if (vehicleTypeId) {
-                const vehicleType = await VehicleType.findByPk(vehicleTypeId);
+            if (id_vehicle_types) {
+                const vehicleType = await VehicleType.findByPk(id_vehicle_types);
                 if (!vehicleType) {
                     return res.status(404).json({
                         success: false,
@@ -179,7 +179,7 @@ export class VehicleController {
 
             await vehicle.update({
                 ...(licensePlate && { license_plate: licensePlate }),
-                ...(vehicleTypeId && { id_vehicle_types: vehicleTypeId }),
+                ...(id_vehicle_types && { id_vehicle_types: id_vehicle_types }),
                 ...(url_foto !== undefined && { url_foto })
             });
 
@@ -342,7 +342,8 @@ export class VehicleController {
                     notes: null,
                     movement_type: 'ENTRY',
                     created_at: new Date(),
-                    id_vehicles: null
+                    id_vehicles: null,
+                    is_positive : 0
                 });
 
                 idUnidentifiedVehicles = record.id_unidentified_vehicles;
@@ -447,8 +448,7 @@ export class VehicleController {
 
                     contractId = contractVehicles ? contractVehicles!.dataValues.id_contracts : null;
 
-                    console.log(contractVehicles,contractId);
-
+     
 
 
 
@@ -528,6 +528,7 @@ export class VehicleController {
                         : 'Salida registrada sin patente legible',
                     movement_type: 'EXIT',
                     created_at: now,
+                    // is_positive: 1,
                     id_vehicles: null
                 });
 
