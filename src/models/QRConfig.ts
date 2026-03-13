@@ -1,4 +1,5 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
+import { ParkingLot } from './ParkingLot';
 
 @Table({
     tableName: 'qr_configs',
@@ -39,4 +40,14 @@ export class QRConfig extends Model {
         allowNull: true
     })
     declare updated_at: Date;
+
+    @ForeignKey(() => ParkingLot)
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_parking_lots?: number;
+
+    @BelongsTo(() => ParkingLot)
+    declare parkingLot: ParkingLot;
 }

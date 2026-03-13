@@ -13,6 +13,7 @@ router.get('/', ContractRateController.getAll);
  * GET /api/v1/contract-rates/:id
  * Obtener una tarifa de contrato por ID
  */
+router.get('/by-contract-type/:id', ContractRateController.getAllByIdContractTypes);
 router.get('/:id', ContractRateController.getById);
 
 /**

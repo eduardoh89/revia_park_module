@@ -46,8 +46,10 @@ export class VehicleTypeController {
                 success: true,
                 data: {
                     id: vehicleType.id_vehicle_types,
+                    code: vehicleType.code,
                     name: vehicleType.name,
                     description: vehicleType.description,
+                    not_delete: vehicleType.not_delete,
                 },
             });
         } catch (error) {
@@ -65,7 +67,7 @@ export class VehicleTypeController {
      */
     static async create(req: Request, res: Response) {
         try {
-            const { name, description } = req.body;
+            const { code, name, description, not_delete } = req.body;
 
             if (!name) {
                 return res.status(400).json({
@@ -74,14 +76,21 @@ export class VehicleTypeController {
                 });
             }
 
-            const vehicleType = await VehicleType.create({ name, description });
+            const vehicleType = await VehicleType.create({
+                code: code || null,
+                name,
+                description: description || null,
+                not_delete: not_delete ?? 0
+            });
 
             res.status(201).json({
                 success: true,
                 data: {
                     id: vehicleType.id_vehicle_types,
+                    code: vehicleType.code,
                     name: vehicleType.name,
                     description: vehicleType.description,
+                    not_delete: vehicleType.not_delete,
                 },
             });
         } catch (error) {
@@ -100,7 +109,7 @@ export class VehicleTypeController {
     static async update(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { name, description } = req.body;
+            const { code, name, description, not_delete } = req.body;
 
             const vehicleType = await VehicleType.findByPk(parseInt(id));
 
@@ -118,14 +127,21 @@ export class VehicleTypeController {
                 });
             }
 
-            await vehicleType.update({ name, description });
+            await vehicleType.update({
+                ...(code !== undefined && { code }),
+                name,
+                ...(description !== undefined && { description }),
+                ...(not_delete !== undefined && { not_delete })
+            });
 
             res.json({
                 success: true,
                 data: {
                     id: vehicleType.id_vehicle_types,
+                    code: vehicleType.code,
                     name: vehicleType.name,
                     description: vehicleType.description,
+                    not_delete: vehicleType.not_delete,
                 },
             });
         } catch (error) {
@@ -150,6 +166,13 @@ export class VehicleTypeController {
                 return res.status(404).json({
                     success: false,
                     error: 'Tipo de vehículo no encontrado',
+                });
+            }
+
+            if (vehicleType.not_delete === 1) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'Este tipo de vehículo no puede ser eliminado'
                 });
             }
 

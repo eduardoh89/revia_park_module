@@ -4,9 +4,14 @@ import { PaymentController } from '../controllers/PaymentController';
 const router = Router();
 
 /**
- * POST /api/v1/payments/create
+ * POST /api/v1/payments/create-link
  * Crear link de pago temporal (usado por WhatsApp Bot)
- * Retorna: { paymentUrl, expiresAt, amount, licensePlate }
+ */
+router.post('/create-link', PaymentController.createPaymentLink);
+
+/**
+ * POST /api/v1/payments/create
+ * Alias para compatibilidad con WhatsApp Bot
  */
 router.post('/create', PaymentController.createPaymentLink);
 
@@ -15,6 +20,8 @@ router.post('/create', PaymentController.createPaymentLink);
  * Mostrar formulario de pago usando el código del link temporal
  */
 router.get('/checkout', PaymentController.checkout);
+
+
 
 /**
  * GET /api/v1/payments/success
@@ -33,5 +40,47 @@ router.get('/cancel', PaymentController.cancel);
  * Página de error
  */
 router.get('/error', PaymentController.error);
+
+/**
+ * GET /api/v1/payments
+ * Listar todos los pagos
+ */
+router.get('/', PaymentController.getAll);
+
+/**
+ * POST /api/v1/payments
+ * Crear un pago directamente
+ */
+router.post('/', PaymentController.create);
+
+/**
+ * POST /api/v1/payments/filter
+ * Filtrar pagos por status, type (contract|session) y rango de fechas
+ */
+router.post('/filter', PaymentController.filterPayments);
+
+/**
+ * POST /api/v1/payments/by-date
+ * Obtener pagos por fecha (body: { date: "YYYY-MM-DD" })
+ */
+router.post('/by-date', PaymentController.getByDate);
+
+/**
+ * GET /api/v1/payments/:id
+ * Obtener un pago por ID
+ */
+router.get('/:id', PaymentController.getById);
+
+/**
+ * PUT /api/v1/payments/:id
+ * Actualizar un pago
+ */
+router.put('/:id', PaymentController.update);
+
+/**
+ * DELETE /api/v1/payments/:id
+ * Eliminar un pago
+ */
+router.delete('/:id', PaymentController.delete);
 
 export default router;

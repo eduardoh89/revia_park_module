@@ -3,6 +3,11 @@ import { WhatsAppContact } from '../../models/WhatsAppContact';
 import { WhatsAppConversation } from '../../models/WhatsAppConversation';
 import { ParkingSession } from '../../models/ParkingSession';
 import { Vehicle } from '../../models/Vehicle';
+import { Contract } from '../../models/Contract';
+import { Company } from '../../models/Company';
+import { ContractType } from '../../models/ContractType';
+import { ContractRate } from '../../models/ContractRate';
+import { ContractRateConfig } from '../../models/ContractRateConfig';
 import { PaymentLinkService } from '../services/PaymentLinkService';
 
 const delay = (ms: number): Promise<void> =>
@@ -38,7 +43,7 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
                 order: [['created_at', 'DESC']],
                 include: [{
                     model: ParkingSession,
-                    include: [Vehicle]
+                    include: [{ model: Vehicle, as: 'vehicle' }]
                 }]
             });
 
@@ -49,6 +54,9 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
 
             const session = lastConversation.parkingSession;
 
+   
+            
+
             // Verificar que la sesión siga en estado PARKED
             if (session.status !== 'PARKED') {
                 const message = session.status === 'PAID'
@@ -57,6 +65,40 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
 
                 await ctxFn.flowDynamic(message);
                 return ctxFn.endFlow();
+            }
+
+            // Verificar si tiene contrato vigente
+            if (session.id_contracts) {
+                const contract = await Contract.findByPk(session.id_contracts, {
+                    include: [
+                        { model: Company },
+                        { model: ContractType },
+                        { model: ContractRate, include: [{ model: ContractRateConfig }] }
+                    ]
+                });
+
+                const today = new Date().toISOString().split('T')[0];
+
+                if (contract &&
+                    contract.status === 1 &&
+                    contract.start_date <= today &&
+                    contract.end_date >= today) {
+
+                    const contractMessage =
+                        '✅ *Vehículo con contrato vigente*\n\n' +
+                        `📄 *Tipo de plan:* ${contract.contractRate?.contractRateConfig?.name || 'N/A'}\n` +
+                        `📄 *Valor Plan:* ${contract.final_price}\n` +
+                        `📅 *Inicio:* ${contract.start_date}\n` +
+                        `📅 *Vencimiento:* ${contract.end_date}\n\n` +
+                        '🚗 *No necesita pagar. Puede salir sin costo.*\n\n' +
+                        '¡Buen viaje! 👋';
+
+                    await ctxFn.flowDynamic(contractMessage);
+                    return ctxFn.endFlow();
+                }
+
+                // Contrato vencido/inactivo → limpiar y continuar con pago normal
+                await session.update({ id_contracts: null });
             }
 
             // Obtener la patente del vehículo desde la sesión
@@ -71,7 +113,8 @@ const newLinkFlow = addKeyword(['🔄 Nuevo link', 'nuevo link', 'generar link']
             // Generar nuevo link de pago
             try {
                 const paymentLinkService = new PaymentLinkService();
-                const paymentResult = await paymentLinkService.createPaymentLink(
+                
+                const paymentResult = await paymentLinkService.renewPaymentLink(
                     patente,
                     session.id_parking_sessions
                 );
