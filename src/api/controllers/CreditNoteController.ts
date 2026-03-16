@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { CreditNote } from '../../models/CreditNote';
 import { Payment } from '../../models/Payment';
+import { User } from '../../models/User';
 import { Logger } from '../../shared/utils/logger';
 
 const logger = new Logger('CreditNoteController');
@@ -16,7 +17,8 @@ export class CreditNoteController {
             const notes = await CreditNote.findAll({
                 include: [
                     { model: Payment, as: 'originalPayment' },
-                    { model: Payment, as: 'newPayment', required: false }
+                    { model: Payment, as: 'newPayment', required: false },
+                    { model: User }
                 ],
                 order: [['created_at', 'DESC']]
             });
@@ -44,7 +46,8 @@ export class CreditNoteController {
             const note = await CreditNote.findByPk(parseInt(id), {
                 include: [
                     { model: Payment, as: 'originalPayment' },
-                    { model: Payment, as: 'newPayment', required: false }
+                    { model: Payment, as: 'newPayment', required: false },
+                    { model: User }
                 ]
             });
 
@@ -74,12 +77,26 @@ export class CreditNoteController {
      */
     static async create(req: Request, res: Response) {
         try {
-            const { amount, note, id_payments_original, id_payments_new, id_users } = req.body;
+            const { amount, note, status, refund_method, id_payments_original, id_payments_new, id_users } = req.body;
 
             if (!amount || amount <= 0) {
                 return res.status(400).json({
                     success: false,
                     error: 'El monto es obligatorio y debe ser mayor a 0'
+                });
+            }
+
+            if (!refund_method) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El método de devolución es obligatorio (CASH, TRANSFER, OTHER)'
+                });
+            }
+
+            if (!id_users) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El usuario es obligatorio'
                 });
             }
 
@@ -112,15 +129,18 @@ export class CreditNoteController {
                 amount,
                 note: note || null,
                 created_at: new Date(),
+                status: status || 'PENDING',
+                refund_method,
                 id_payments_original,
                 id_payments_new: id_payments_new || null,
-                id_users: id_users || null
+                id_users
             });
 
             const created = await CreditNote.findByPk(creditNote.id_credit_notes, {
                 include: [
                     { model: Payment, as: 'originalPayment' },
-                    { model: Payment, as: 'newPayment', required: false }
+                    { model: Payment, as: 'newPayment', required: false },
+                    { model: User }
                 ]
             });
 
@@ -146,7 +166,7 @@ export class CreditNoteController {
     static async update(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const { amount, note, id_payments_new, id_users } = req.body;
+            const { amount, note, status, refund_method, id_payments_new, id_users } = req.body;
 
             const creditNote = await CreditNote.findByPk(parseInt(id));
 
@@ -177,6 +197,8 @@ export class CreditNoteController {
             await creditNote.update({
                 ...(amount !== undefined && { amount }),
                 ...(note !== undefined && { note }),
+                ...(status !== undefined && { status }),
+                ...(refund_method !== undefined && { refund_method }),
                 ...(id_payments_new !== undefined && { id_payments_new }),
                 ...(id_users !== undefined && { id_users })
             });
@@ -184,7 +206,8 @@ export class CreditNoteController {
             const updated = await CreditNote.findByPk(creditNote.id_credit_notes, {
                 include: [
                     { model: Payment, as: 'originalPayment' },
-                    { model: Payment, as: 'newPayment', required: false }
+                    { model: Payment, as: 'newPayment', required: false },
+                    { model: User }
                 ]
             });
 

@@ -103,4 +103,10 @@ export class ParkingSession extends Model {
 
     @BelongsTo(() => UnidentifiedVehicle)
     declare unidentifiedVehicle?: UnidentifiedVehicle;
+
+    @Column({
+        type: DataType.INTEGER,
+        allowNull: true
+    })
+    declare id_utopia?: number;
 }

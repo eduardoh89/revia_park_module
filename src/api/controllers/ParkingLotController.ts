@@ -35,7 +35,6 @@ export class ParkingLotController {
             const { id } = req.params;
             const parsedId = parseInt(id);
 
-            console.log(id);
             
 
             if (isNaN(parsedId)) {

@@ -27,6 +27,8 @@ export class RoleModulePermissionController {
                 include: [{ model: Role }, { model: ModuleItem }]
             });
 
+            
+
             if (!permission) {
                 return res.status(404).json({ success: false, error: 'Permiso no encontrado' });
             }
@@ -41,10 +43,15 @@ export class RoleModulePermissionController {
     static async getByRole(req: Request, res: Response) {
         try {
             const { roleId } = req.params;
+
+        
             const permissions = await RoleModulePermission.findAll({
                 where: { id_roles: parseInt(roleId) },
                 include: [{ model: ModuleItem }]
             });
+
+           
+            
             res.json({ success: true, data: permissions });
         } catch (error) {
             logger.error('Error getting permissions by role', { error });

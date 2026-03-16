@@ -66,6 +66,7 @@ export class ModuleController {
             });
 
             const allowedItemIds = permissions.map(p => p.id_module_items);
+            
 
             if (allowedItemIds.length === 0) {
                 return res.json({ success: true, data: [] });
@@ -75,7 +76,7 @@ export class ModuleController {
             const modules = await Module.findAll({
                 include: [{
                     model: ModuleItem,
-                    where: { id_module_items: { [Op.in]: allowedItemIds } },
+                   where: { id_module_items: { [Op.in]: allowedItemIds } },
                     required: false
                 }]
             });

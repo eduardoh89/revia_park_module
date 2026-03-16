@@ -164,7 +164,7 @@ export class ModuleItemController {
                 });
             }
 
-            await moduleItem.update({ code, name, icon, route, is_active, id_modules });
+            await moduleItem.update({ code, name, icon, route, is_active, id_modules,sort_order });
 
             res.json({
                 success: true,

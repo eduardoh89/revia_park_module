@@ -455,7 +455,7 @@ export class VehicleController {
 
                     // 3. Filtrar contratos vigentes (hoy entre start_date y end_date)
                     const today = new Date().toISOString().split('T')[0];
-                    console.log(today);
+    
                     
 
                     const contracts = await Contract.findOne({

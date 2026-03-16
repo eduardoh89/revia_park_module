@@ -158,6 +158,7 @@ export class ContractRateController {
                 id_contract_types,
                 id_contract_rate_configs
             } = req.body;
+            
 
             const contractRate = await ContractRate.findByPk(parseInt(id));
 

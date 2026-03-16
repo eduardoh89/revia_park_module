@@ -8,6 +8,7 @@ const router = Router();
  * Listar sesiones activas (debe ir antes de /:id)
  */
 router.get('/active', ParkingSessionController.getActive);
+router.get('/is-parked/:id', ParkingSessionController.getIsParked);
 
 /**
  * GET /api/v1/parking-sessions
@@ -20,6 +21,18 @@ router.post('/filtered-parking', ParkingSessionController.postFilteredParkingSes
  * Crear una nueva sesión de estacionamiento
  */
 router.post('/', ParkingSessionController.create);
+
+/**
+ * POST /api/v1/parking-sessions/create-with-exception
+ * Crear sesión + excepción de ingreso manual, detecta contrato activo automáticamente
+ */
+router.post('/create-with-exception', ParkingSessionController.createWithException);
+
+/**
+ * POST /api/v1/parking-sessions/exception-sessions
+ * Listar sesiones con excepción de ingreso manual (id_exception_types: 3)
+ */
+router.post('/exception-sessions', ParkingSessionController.postExceptionSessions);
 
 /**
  * POST /api/v1/parking-sessions/by-date
@@ -38,6 +51,7 @@ router.get('/:id', ParkingSessionController.getById);
  * Actualizar una sesión de estacionamiento
  */
 router.put('/:id', ParkingSessionController.update);
+router.put('/update-with-exception/:id', ParkingSessionController.updateWithException);
 
 /**
  * PATCH /api/v1/parking-sessions/:id/exit

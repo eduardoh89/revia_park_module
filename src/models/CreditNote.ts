@@ -1,5 +1,6 @@
 import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, ForeignKey, BelongsTo } from 'sequelize-typescript';
 import { Payment } from './Payment';
+import { User } from './User';
 
 @Table({
     tableName: 'credit_notes',
@@ -29,6 +30,19 @@ export class CreditNote extends Model {
     })
     declare created_at?: Date;
 
+    @Column({
+        type: DataType.ENUM('PENDING', 'APPLIED', 'VOIDED'),
+        allowNull: false,
+        defaultValue: 'PENDING'
+    })
+    declare status: 'PENDING' | 'APPLIED' | 'VOIDED';
+
+    @Column({
+        type: DataType.ENUM('CASH', 'TRANSFER', 'OTHER'),
+        allowNull: false
+    })
+    declare refund_method: 'CASH' | 'TRANSFER' | 'OTHER';
+
     @ForeignKey(() => Payment)
     @Column({
         type: DataType.INTEGER,
@@ -51,9 +65,13 @@ export class CreditNote extends Model {
     @BelongsTo(() => Payment, { foreignKey: 'id_payments_new', as: 'newPayment' })
     declare newPayment?: Payment;
 
+    @ForeignKey(() => User)
     @Column({
         type: DataType.INTEGER,
-        allowNull: true
+        allowNull: false
     })
-    declare id_users?: number;
+    declare id_users: number;
+
+    @BelongsTo(() => User)
+    declare user: User;
 }

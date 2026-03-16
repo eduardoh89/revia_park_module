@@ -11,6 +11,9 @@ import { ContractRateConfig } from '../../models/ContractRateConfig';
 import { Vehicle } from '../../models/Vehicle';
 import { ContractVehicle } from '../../models/ContractVehicle';
 import { Logger } from '../../shared/utils/logger';
+import { ParkingSession } from '../../models/ParkingSession';
+import { Payment } from '../../models/Payment';
+
 
 
 const logger = new Logger('ContractController');
@@ -34,7 +37,9 @@ export class ContractController {
                     { model: ParkingLot },
                     { model: User }
                 ],
-                order: [['start_date', 'DESC']]
+                order: [['start_date', 'DESC']],
+                raw: true,
+                nest: true,
             });
 
             const arrayIdContracts = contracts.map((c) => c.id_contracts);
@@ -47,14 +52,26 @@ export class ContractController {
                 ]
             });
 
-            const newContracts = contracts.map((c) => {
-                const contractVehicleFound = contractVehicles.find(
-                    (v) => v.id_contracts === c.id_contracts
-                );
+            const keyContractVehicles = contractVehicles.reduce((acc: Record<number, string>, el: any) => {
+                acc[el.id_contracts] = el;
+                return acc;
+            }, {});
 
+
+            const payment = await Payment.findAll({ where: { id_contracts: arrayIdContracts } });
+
+            const keyPayment = payment.reduce((acc: Record<number, string>, el: any) => {
+                acc[el.id_contracts] = el.id_payments;
+                return acc;
+            }, {})
+
+
+            const newContracts = contracts.map((c) => {
                 return {
-                    ...c.toJSON(),
-                    contractVehicle: contractVehicleFound
+                    ...c,
+                    contractVehicle: keyContractVehicles[c.id_contracts],
+                    id_payments: keyPayment[c.id_contracts] ?? null
+
                 };
             });
 
@@ -233,6 +250,10 @@ export class ContractController {
                     id_contract_rates: id_contract_rates || null
                 }, { transaction: t });
 
+
+
+
+
                 // 2. Crear contract_vehicles si se enviaron vehículos
                 if (Array.isArray(vehicles) && vehicles.length > 0) {
                     const contractVehiclesData = vehicles.map((v: { id_vehicles: number; is_active?: number }) => ({
@@ -240,6 +261,21 @@ export class ContractController {
                         id_vehicles: v.id_vehicles,
                         is_active: v.is_active ?? 1
                     }));
+
+
+                    for (const v of contractVehiclesData) {
+                        const sessionNow = await ParkingSession.findOne({
+                            where: {
+                                status: 'PARKED',
+                                id_vehicles: v.id_vehicles
+                            },
+                        });
+                        if (sessionNow) {
+                            const date = await sessionNow.update({
+                                id_contracts: v.id_contracts,
+                            }, { transaction: t });
+                        }
+                    }
 
                     await ContractVehicle.bulkCreate(contractVehiclesData, { transaction: t });
                 }
