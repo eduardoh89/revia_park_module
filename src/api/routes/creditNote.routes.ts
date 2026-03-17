@@ -10,6 +10,12 @@ const router = Router();
 router.get('/', CreditNoteController.getAll);
 
 /**
+ * POST /api/v1/credit-notes/filter
+ * Filtrar notas de crédito por status, refund_method y rango de fechas
+ */
+router.post('/filter', CreditNoteController.filterCreditNotes);
+
+/**
  * POST /api/v1/credit-notes
  * Crear una nueva nota de crédito
  */

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { Op } from 'sequelize';
 import { CreditNote } from '../../models/CreditNote';
 import { Payment } from '../../models/Payment';
 import { User } from '../../models/User';
@@ -220,6 +221,49 @@ export class CreditNoteController {
             res.status(500).json({
                 success: false,
                 error: 'Error al actualizar nota de crédito'
+            });
+        }
+    }
+
+    /**
+     * POST /api/v1/credit-notes/filter
+     * Filtrar notas de crédito por status, refund_method y rango de fechas
+     */
+    static async filterCreditNotes(req: Request, res: Response) {
+        try {
+            const { status, refund_method, date_from, date_to } = req.body;
+
+            const where: any = {};
+
+            if (status) where.status = status;
+            if (refund_method) where.refund_method = refund_method;
+
+            if (date_from || date_to) {
+                const from = date_from ? new Date(`${date_from}T00:00:00.000Z`) : new Date(0);
+                const to = date_to ? new Date(`${date_to}T23:59:59.999Z`) : new Date();
+                where.created_at = { [Op.between]: [from, to] };
+            }
+
+            const notes = await CreditNote.findAll({
+                where,
+                include: [
+                    { model: Payment, as: 'originalPayment' },
+                    { model: Payment, as: 'newPayment', required: false },
+                    { model: User }
+                ],
+                order: [['created_at', 'DESC']]
+            });
+
+            res.json({
+                success: true,
+                data: notes,
+                count: notes.length
+            });
+        } catch (error) {
+            logger.error('Error filtering credit notes', { error });
+            res.status(500).json({
+                success: false,
+                error: 'No se pudieron filtrar las notas de crédito'
             });
         }
     }
