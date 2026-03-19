@@ -306,7 +306,8 @@ export class VehicleController {
                 licensePlate,
                 parkingLotId = 1,
                 arrival_time,
-                vehicleType
+                vehicleType,
+                idUtopia
             } = req.body;
 
 
@@ -369,6 +370,7 @@ export class VehicleController {
                     has_trailer_exit: 0,
                     id_parking_lots: parkingLotId,
                     id_unidentified_vehicles: idUnidentifiedVehicles,
+                    id_utopia: idUtopia
                     //id_contracts: id_contracts || null,
                 });
 
@@ -480,6 +482,7 @@ export class VehicleController {
                         id_vehicles: idVehicles,
                         id_trailer: null,
                         id_contracts: contractId,
+                        id_utopia :idUtopia
                     });
 
                     res.status(201).json({
@@ -612,74 +615,147 @@ export class VehicleController {
     }
 
     /**
-     * GET /api/v1/vehicles/:plate/status
-     * Obtener estado del vehículo
+     * 📌 GET /api/v1/vehicles/:plate/status
+     * ──────────────────────────────────────────────────────────────────
+     * Consulta el estado actual de un vehículo y determina si puede salir.
+     * Busca la sesión más reciente del vehículo y evalúa su estado.
+     *
+     * PARÁMETROS DE RUTA
+     * ──────────────────────────────────────────────────────────────────
+     * @param plate  Patente del vehículo (URL param)
+     *               Ejemplo: GET /api/v1/vehicles/ABC123/status
+     *
+     * LÓGICA DE ESTADOS
+     * ──────────────────────────────────────────────────────────────────
+     * La respuesta varía según el status de la última sesión:
+     *
+     *  PAID              → canExit: true   (pagó, puede salir)
+     *  PARKED + contrato vigente → canExit: true   (tiene plan activo)
+     *  PARKED + contrato vencido → canExit: false  (plan expirado, debe pagar)
+     *  PARKED sin contrato       → canExit: false  (debe pagar)
+     *  EXITED_PAID /
+     *  EXITED_CONTRACT /
+     *  EXITED_EXCEPTION  → canExit: false  (ya registró salida)
+     *  FALSE_POSITIVE    → canExit: false  (sesión inválida)
+     *
+     * RESPUESTAS
+     * ──────────────────────────────────────────────────────────────────
+     * ✅ 200 – Vehículo encontrado (independiente de si puede salir)
+     * {
+     *   "success": true,
+     *   "status": "PAID" | "PARKED" | "EXITED_PAID" | "EXITED_CONTRACT" |
+     *             "EXITED_EXCEPTION" | "FALSE_POSITIVE",
+     *   "msg":   "...",   // presente cuando canExit: true
+     *   "error": "...",   // presente cuando canExit: false
+     *   "canExit": true | false
+     * }
+     *
+     * ❌ 404 – Patente no registrada o sin sesiones
+     * {
+     *   "success": false,
+     *   "error": "Patente no encontrada" | "El vehículo no tiene sesiones registradas",
+     *   "canExit": false
+     * }
+     *
+     * ❌ 500 – Error interno
+     * {
+     *   "success": false,
+     *   "error": "Error al obtener estado del vehículo"
+     * }
      */
     static async getStatus(req: Request, res: Response) {
         try {
             const { plate } = req.params;
+            
+            const vehicle = await Vehicle.findOne({ where: { license_plate: plate } });
+            if (!vehicle) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Patente no encontrada',
+                    canExit: false,
+                });
+            }
+            const idVehicles = vehicle.id_vehicles;
 
             const session = await ParkingSession.findOne({
-                include: [
-                    {
-                        model: Vehicle,
-                        where: { license_plate: plate },
-                        required: true
-                    },
-                    {
-                        model: ParkingLot,
-                        required: true
-                    }
-                ],
-                where: { status: 'PARKED' }
+                where: { id_vehicles: idVehicles },
+                order: [['id_parking_sessions', 'DESC']],
+                raw: true,
             });
 
             if (!session) {
-                const lastPaidSession = await ParkingSession.findOne({
-                    include: [{
-                        model: Vehicle,
-                        where: { license_plate: plate }
-                    }],
-                    where: { status: 'EXITED_PAID' },
-                    order: [['exit_time', 'DESC']]
+                return res.status(404).json({
+                    success: false,
+                    error: 'El vehículo no tiene sesiones registradas',
+                    canExit: false,
+                });
+            }
+
+            // Sesiones ya cerradas
+            if (['EXITED_PAID', 'EXITED_CONTRACT', 'EXITED_EXCEPTION'].includes(session.status!)) {
+                return res.status(200).json({
+                    success: true,
+                    status: session.status,
+                    error: 'El vehículo ya tiene una salida registrada',
+                    canExit: false,
+                });
+            }
+
+            if (session.status === 'FALSE_POSITIVE') {
+                return res.status(200).json({
+                    success: true,
+                    status: session.status,
+                    error: 'Sesión marcada como falso positivo',
+                    canExit: false,
+                });
+            }
+
+            // Ya pagó, puede salir
+            if (session.status === 'PAID') {
+                return res.status(200).json({
+                    success: true,
+                    status: session.status,
+                    msg: 'El vehículo ya pagó, puede salir',
+                    canExit: true,
+                });
+            }
+
+            // Estacionado con contrato → verificar vigencia
+            if (session.status === 'PARKED' && session.id_contracts != null) {
+                const today = new Date().toISOString().split('T')[0];
+                const contract = await Contract.findOne({
+                    where: {
+                        id_contracts: session.id_contracts,
+                        start_date: { [Op.lte]: today },
+                        end_date: { [Op.gte]: today },
+                        status: 1,
+                    },
                 });
 
-                if (lastPaidSession) {
-                    return res.json({
+                if (contract) {
+                    return res.status(200).json({
                         success: true,
-                        status: 'EXITED_PAID',
-                        message: 'El vehículo puede salir',
-                        canExit: true
+                        status: session.status,
+                        msg: 'El vehículo tiene contrato vigente, puede salir',
+                        canExit: true,
                     });
                 }
 
-                return res.status(404).json({
-                    success: false,
-                    error: 'No se encontró sesión activa para este vehículo',
+                // Contrato vencido o inválido, debe pagar
+                return res.status(200).json({
+                    success: true,
+                    status: session.status,
+                    error: 'El contrato del vehículo no está vigente, debe pagar',
+                    canExit: false,
                 });
             }
 
-            let estimatedAmount = 0;
-            try {
-                estimatedAmount = await VehicleController.calculateAmount(
-                    session.id_parking_sessions
-                );
-            } catch (error) {
-                logger.warn('Could not calculate amount', { error });
-            }
-
-            const vehicle = await Vehicle.findByPk(session.id_vehicles);
-
-            res.json({
+            // PARKED sin contrato → debe pagar
+            return res.status(200).json({
                 success: true,
-                data: {
-                    sessionId: session.id_parking_sessions,
-                    licensePlate: vehicle?.license_plate,
-                    status: session.status,
-                    arrivalTime: session.arrival_time,
-                    estimatedAmount: estimatedAmount,
-                    canExit: session.status === 'EXITED_PAID',
-                },
+                status: session.status,
+                error: 'El vehículo está estacionado y aún no ha pagado',
+                canExit: false,
             });
         } catch (error) {
             logger.error('Error getting vehicle status', { error });
