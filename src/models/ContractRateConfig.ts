@@ -27,4 +27,10 @@ export class ContractRateConfig extends Model {
         allowNull: false
     })
     declare description: string;
+
+    @Column({
+        type: DataType.TINYINT,
+        allowNull: true
+    })
+    declare is_active: number;
 }

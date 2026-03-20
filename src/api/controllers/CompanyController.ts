@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { Company } from '../../models/Company';
 import { Logger } from '../../shared/utils/logger';
-import { validate as validateRut } from 'rut.js';
+import { validate as validateRut, getCheckDigit,clean  } from 'rut.js';
 
 const logger = new Logger('CompanyController');
 
@@ -82,19 +82,22 @@ export class CompanyController {
         try {
             const { rut, name, business_name, phone, email } = req.body;
 
+            
+
             if (!rut) {
                 return res.status(400).json({
                     success: false,
                     error: 'El RUT es obligatorio',
                 });
             }
-
-            if (!validateRut(rut)) {
+            if (!validateRut(clean(rut))) {
                 return res.status(409).json({
                     success: false,
                     error: 'El RUT ingresado no es válido',
                 });
             }
+
+            
 
             if (!business_name) {
                 return res.status(409).json({

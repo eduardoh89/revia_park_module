@@ -1,4 +1,5 @@
-import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType } from 'sequelize-typescript';
+import { Table, Column, Model, PrimaryKey, AutoIncrement, DataType, HasMany } from 'sequelize-typescript';
+import { VehicleRate } from './VehicleRate';
 
 @Table({
     tableName: 'vehicle_types',
@@ -11,6 +12,12 @@ export class VehicleType extends Model {
     declare id_vehicle_types: number;
 
     @Column({
+        type: DataType.STRING(4),
+        allowNull: true
+    })
+    declare code?: string;
+
+    @Column({
         type: DataType.STRING(45),
         allowNull: false
     })
@@ -20,5 +27,15 @@ export class VehicleType extends Model {
         type: DataType.STRING(100),
         allowNull: true
     })
-    declare description: string;
+    declare description?: string;
+
+    @Column({
+        type: DataType.TINYINT,
+        allowNull: false,
+        defaultValue: 0
+    })
+    declare not_delete: number;
+
+    @HasMany(() => VehicleRate)
+    declare vehicleRates: VehicleRate[];
 }

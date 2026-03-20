@@ -15,11 +15,7 @@ export class ParkingLotController {
 
             res.json({
                 success: true,
-                data: parkingLots.map((lot) => ({
-                    id: lot.id_parking_lots,
-                    name: lot.name,
-                    address: lot.address,
-                })),
+                data: parkingLots,
             });
         } catch (error) {
             logger.error('Error getting parking lots', { error });
@@ -37,7 +33,18 @@ export class ParkingLotController {
     static async getById(req: Request, res: Response) {
         try {
             const { id } = req.params;
-            const parkingLot = await ParkingLot.findByPk(parseInt(id));
+            const parsedId = parseInt(id);
+
+            
+
+            if (isNaN(parsedId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El id debe ser un número válido',
+                });
+            }
+
+            const parkingLot = await ParkingLot.findByPk(parsedId);
 
             if (!parkingLot) {
                 return res.status(404).json({
@@ -48,19 +55,98 @@ export class ParkingLotController {
 
             res.json({
                 success: true,
-                data: {
-                    id: parkingLot.id_parking_lots,
-                    name: parkingLot.name,
-                    address: parkingLot.address,
-                    phone: parkingLot.phone,
-                    email: parkingLot.email,
-                },
+                data: parkingLot,
             });
         } catch (error) {
             logger.error('Error getting parking lot', { error });
             res.status(500).json({
                 success: false,
                 error: 'Error al obtener estacionamiento',
+            });
+        }
+    }
+
+    /**
+     * POST /api/v1/parking-lots
+     * Crear un estacionamiento
+     */
+    static async create(req: Request, res: Response) {
+        try {
+            const { name, address, phone, email } = req.body;
+
+            if (!name) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El nombre es obligatorio',
+                });
+            }
+
+            const parkingLot = await ParkingLot.create({
+                name,
+                address: address || null,
+                phone: phone || null,
+                email: email || null,
+            });
+
+            logger.info('Parking lot created', { id: parkingLot.id_parking_lots });
+
+            res.status(201).json({
+                success: true,
+                data: parkingLot,
+            });
+        } catch (error) {
+            logger.error('Error creating parking lot', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al crear estacionamiento',
+            });
+        }
+    }
+
+    /**
+     * PUT /api/v1/parking-lots/:id
+     * Editar un estacionamiento
+     */
+    static async update(req: Request, res: Response) {
+        try {
+            const { id } = req.params;
+            const parsedId = parseInt(id);
+            const { name, address, phone, email } = req.body;
+
+            if (isNaN(parsedId)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El id debe ser un número válido',
+                });
+            }
+
+            const parkingLot = await ParkingLot.findByPk(parsedId);
+
+            if (!parkingLot) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Estacionamiento no encontrado',
+                });
+            }
+
+            await parkingLot.update({
+                ...(name !== undefined && { name }),
+                ...(address !== undefined && { address }),
+                ...(phone !== undefined && { phone }),
+                ...(email !== undefined && { email }),
+            });
+
+            logger.info('Parking lot updated', { id: parsedId });
+
+            res.json({
+                success: true,
+                data: parkingLot,
+            });
+        } catch (error) {
+            logger.error('Error updating parking lot', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al actualizar estacionamiento',
             });
         }
     }

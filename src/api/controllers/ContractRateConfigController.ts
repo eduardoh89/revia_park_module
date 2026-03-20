@@ -11,7 +11,9 @@ export class ContractRateConfigController {
      */
     static async getAll(req: Request, res: Response) {
         try {
-            const configs = await ContractRateConfig.findAll();
+            const configs = await ContractRateConfig.findAll({
+                where : { is_active : 1 }
+            });
 
             res.json({
                 success: true,

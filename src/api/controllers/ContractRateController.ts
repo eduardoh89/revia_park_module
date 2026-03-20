@@ -30,6 +30,33 @@ export class ContractRateController {
         }
     }
 
+
+    /**
+ * GET /api/v1/contract-rates
+ * Listar todas las tarifas de contrato segun 
+ */
+    static async getAllByIdContractTypes(req: Request, res: Response) {
+        try {
+            const { id } = req.params;            
+            const contractRates = await ContractRate.findAll({
+                where: { id_contract_types: id },
+                include: [{ model: ContractRateConfig }],
+            });
+
+            res.json({
+                success: true,
+                data: contractRates,
+            });
+        } catch (error) {
+            logger.error('Error getting contract rates', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al obtener tarifas de contrato',
+            });
+        }
+    }
+
+
     /**
      * GET /api/v1/contract-rates/:id
      * Obtener una tarifa de contrato por ID
@@ -69,6 +96,7 @@ export class ContractRateController {
         try {
             const {
                 month_amount,
+                week_amount,
                 exit_charge,
                 is_active,
                 end_date,
@@ -94,6 +122,7 @@ export class ContractRateController {
                 month_amount,
                 exit_charge,
                 is_active,
+                week_amount,
                 start_date: new Date().toISOString().split('T')[0],
                 //end_date,
                 id_contract_types,
@@ -122,12 +151,14 @@ export class ContractRateController {
             const { id } = req.params;
             const {
                 month_amount,
+                week_amount,
                 exit_charge,
                 is_active,
                 end_date,
                 id_contract_types,
                 id_contract_rate_configs
             } = req.body;
+            
 
             const contractRate = await ContractRate.findByPk(parseInt(id));
 
@@ -156,7 +187,8 @@ export class ContractRateController {
                 month_amount,
                 exit_charge,
                 is_active,
-               // end_date,
+                week_amount,
+                // end_date,
                 id_contract_types,
                 id_contract_rate_configs
             });

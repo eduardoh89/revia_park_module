@@ -10,6 +10,12 @@ const router = Router();
 router.get('/', ModuleController.getAll);
 
 /**
+ * GET /api/v1/modules/by-user/:id_users
+ * Obtener módulos filtrados por permisos del usuario
+ */
+router.get('/by-user/:id_users', ModuleController.getAllByUser);
+
+/**
  * GET /api/v1/modules/:id
  * Obtener un módulo por ID
  */
