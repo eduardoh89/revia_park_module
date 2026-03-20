@@ -16,11 +16,38 @@ export class UnidentifiedVehicleController {
     static async getAll(req: Request, res: Response) {
         try {
             const records = await UnidentifiedVehicle.findAll({
-                include: [{ model: Vehicle, required: false }],
-                order: [['id_unidentified_vehicles', 'DESC']]
+                include: [{ model: Vehicle,}],
+                order: [['id_unidentified_vehicles', 'DESC']],
+                // raw: true,
+                // nest: true,
             });
 
-            res.json({ success: true, data: records });
+            const allowedIds = records.map(p => p.id_unidentified_vehicles);
+
+            const sessions = await ParkingSession.findAll({
+                where: { id_unidentified_vehicles: { [Op.in]: allowedIds } },
+                raw: true,
+                nest: true,
+            });
+
+                const keysessions = sessions.reduce((acc: Record<number, string>, el: any) => {
+                acc[el.id_unidentified_vehicles] = el.id_utopia;
+                return acc;
+            }, {});
+
+
+
+
+
+            const finalSessions = records.map((x) => ({
+                ...x.toJSON(),
+                id_utopia: keysessions[x.id_unidentified_vehicles]
+            }));
+
+
+            
+
+            res.json({ success: true, data: finalSessions });
         } catch (error) {
             logger.error('Error getting unidentified vehicles', { error });
             res.status(500).json({ success: false, error: 'Error al obtener vehículos no identificados' });

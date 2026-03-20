@@ -13,6 +13,9 @@ import { ContractVehicle } from '../../models/ContractVehicle';
 import { Logger } from '../../shared/utils/logger';
 import { ParkingSession } from '../../models/ParkingSession';
 import { Payment } from '../../models/Payment';
+import { Exception } from '../../models/Exception';
+import { ExceptionType } from '../../models/ExceptionType';
+
 
 
 
@@ -363,6 +366,96 @@ export class ContractController {
         } catch (error) {
             logger.error('Error deleting contract', { error });
             res.status(500).json({ success: false, error: 'Error al eliminar contrato' });
+        }
+    }
+
+
+    static async postContractCancel(req: Request, res: Response) {
+        try {
+            const idContract = parseInt(req.params.id);
+            const { status, notes } = req.body;
+
+            const contract = await Contract.findByPk(idContract);
+            if (!contract) {
+                return res.status(404).json({ success: false, error: 'Plan no encontrado' });
+            }
+
+            const result = await sequelize.transaction(async (t) => {
+                // 1. Actualizar el contrato
+                await contract.update({ status, notes }, { transaction: t });
+
+                // 2. Obtener todos los vehículos del contrato
+                const contractVehicles = await ContractVehicle.findAll({
+                    where: { id_contracts: idContract },
+                    include: [{ model: Vehicle }],
+                    transaction: t,
+                });
+
+                if (contractVehicles.length === 0) {
+                    return contract;
+                }
+
+                const vehicleIds = contractVehicles.map(cv => cv.vehicle.id_vehicles);
+
+                // 3. Verificar si el contrato está vigente
+                const today = new Date().toISOString().split('T')[0];
+                const isActive = contract.start_date <= today && contract.end_date >= today;
+
+                // 4. Actualizar sesiones activas de todos los vehículos
+                if (isActive) {
+                    await ParkingSession.update(
+                        { id_contracts: status !== 0 ? idContract : null },
+                        {
+                            where: {
+                                status: 'PARKED',
+                                id_vehicles: { [Op.in]: vehicleIds },
+                            },
+                            transaction: t,
+                        }
+                    );
+                }
+
+                // 5. Si se cancela (status 0), desactivar vehículos y crear excepción
+                if (status === 0) {
+                    await ContractVehicle.update(
+                        { is_active: 0 },
+                        {
+                            where: { id_contracts: idContract },
+                            transaction: t,
+                        }
+                    );
+
+                    const exception = await Exception.findOne({
+                        where: { id_contracts: idContract },
+                        transaction: t,
+                    });
+
+                    if (!exception) {
+                        const idExceptionTypes = 11; // Anular Plan
+                        const exceptionType = await ExceptionType.findByPk(idExceptionTypes, { transaction: t });
+                        if (!exceptionType) {
+                            throw new Error('El tipo de excepción no existe');
+                        }
+
+                        await Exception.create({
+                            created_by: 'SYSTEM',
+                            status: 'OPEN',
+                            occurred_at: new Date(),
+                            id_exception_types: idExceptionTypes,
+                            id_parking_lots: contract.id_parking_lots,
+                            id_contracts: idContract,
+                            notes: notes,
+                        }, { transaction: t });
+                    }
+                }
+
+                return contract;
+            });
+
+            return res.json({ success: true, data: result });
+        } catch (error) {
+            logger.error('Error cancelling contract', { error });
+            res.status(500).json({ success: false, error: 'Error al cancelar contrato' });
         }
     }
 }

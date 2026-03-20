@@ -52,6 +52,7 @@ router.get('/', PaymentController.getAll);
  * Crear un pago directamente
  */
 router.post('/', PaymentController.create);
+router.post('/create-contract', PaymentController.createContract);
 
 /**
  * POST /api/v1/payments/filter

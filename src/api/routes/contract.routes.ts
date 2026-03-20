@@ -11,4 +11,6 @@ router.get('/:id', ContractController.getById);
 router.put('/:id', ContractController.update);
 router.delete('/:id', ContractController.delete);
 
+router.post('/:id/cancel', ContractController.postContractCancel);
+
 export default router;

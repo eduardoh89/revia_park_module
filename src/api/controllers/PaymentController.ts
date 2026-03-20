@@ -570,4 +570,79 @@ export class PaymentController {
             message: req.query.message as string || 'Ocurrió un error al procesar el pago',
         });
     }
+
+
+     /**
+     * POST /api/v1/payments
+     * Crear un nuevo pago
+     */
+    static async createContract(req: Request, res: Response) {
+        try {
+            const { amount, order_id, status, mc_code, id_contracts, id_payment_methods, id_users } = req.body;
+
+            if (!amount || amount <= 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El monto es obligatorio y debe ser mayor a 0'
+                });
+            }
+
+            // if (!order_id) {
+            //     return res.status(400).json({
+            //         success: false,
+            //         error: 'El order_id es obligatorio'
+            //     });
+            // }
+
+
+            if (!id_payment_methods) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'El método de pago es obligatorio'
+                });
+            }
+
+            const paymentMethod = await PaymentMethod.findByPk(id_payment_methods);
+            if (!paymentMethod) {
+                return res.status(404).json({
+                    success: false,
+                    error: 'Método de pago no encontrado'
+                });
+            }
+
+
+
+
+            const payment = await Payment.create({
+                amount,
+                order_id : `PAY-${Math.floor(Date.now() / 1000)}`,
+                status: status || 'COMPLETED',
+                mc_code: mc_code || null,
+                created_at: new Date(),
+                id_contracts,
+                id_payment_methods,
+                id_users: id_users || null
+            });
+
+            const created = await Payment.findByPk(payment.id_payments, {
+                include: [
+                    { model: PaymentMethod }
+                ]
+            });
+
+            logger.info('Payment created', { id: payment.id_payments });
+
+           return res.status(201).json({
+                success: true,
+                data: created
+            });
+        } catch (error) {
+            logger.error('Error creating payment', { error });
+            res.status(500).json({
+                success: false,
+                error: 'Error al crear pago'
+            });
+        }
+    }
+
 }
